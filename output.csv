@@ -4,46 +4,46 @@ request_27,6670.0,affordable_now,full_payment,2026-07-05:6670.0,2026-07-05,none,
 request_28,689.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_29,51524.0,affordable_with_plan,installments,2025-11-04:51524.0,2025-11-04,none,Recommended installments with total cost 51524.0.
 request_30,775.2,affordable_with_plan,installments,2026-04-06:775.2,2026-04-06,none,Recommended installments with total cost 775.2.
-request_31,13840360.0,affordable_later,wait,2024-09-15:18164000.0,2024-09-15,none,Recommended wait with total cost 18164000.0.
-request_32,33305.8,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_33,65180.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_31,13363078.73,affordable_later,wait,2024-09-15:18164000.0,2024-09-15,none,Recommended wait with total cost 18164000.0.
+request_32,18156.42,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_33,35562.09,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_34,129400.0,affordable_now,full_payment,2024-12-04:129400.0,2024-12-04,none,Recommended full_payment with total cost 129400.0.
-request_35,125130.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_36,1446.6,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_35,98622.43,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_36,614.5,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_37,12068800.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_38,379.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_38,269.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_39,203105.0,affordable_later,wait,2026-04-15:208600.0,2026-04-15,none,Recommended wait with total cost 208600.0.
-request_40,894.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_41,24809250.0,affordable_later,wait,2025-11-15:38760000.0,2025-11-15,none,Recommended wait with total cost 38760000.0.
+request_40,347.82,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_41,20297612.85,affordable_later,wait,2025-11-15:38760000.0,2025-11-15,none,Recommended wait with total cost 38760000.0.
 request_42,52100.0,affordable_now,full_payment,2026-01-05:52100.0,2026-01-05,none,Recommended full_payment with total cost 52100.0.
-request_43,15242750.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_44,74560.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_45,8833100.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_43,9511315.81,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_44,48614.32,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_45,4515927.73,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_46,49450.0,affordable_with_plan,installments,2024-12-03:49450.0,2024-12-03,none,Recommended installments with total cost 49450.0.
 request_47,38114000.0,affordable_with_plan,installments,2025-05-05:38114000.0,2025-05-05,none,Recommended installments with total cost 38114000.0.
 request_48,45700.0,affordable_now,full_payment,2026-07-25:45700.0,2026-07-25,none,Recommended full_payment with total cost 45700.0.
-request_49,20228793.34,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_49,12049549.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_50,43900.0,affordable_now,full_payment,2025-08-06:43900.0,2025-08-06,none,Recommended full_payment with total cost 43900.0.
 request_51,2191000.0,affordable_with_plan,installments,2026-01-03:2191000.0,2026-01-03,none,Recommended installments with total cost 2191000.0.
-request_52,28870.0,affordable_with_plan,installments,2024-06-05:28870.0,2024-06-05,none,Recommended installments with total cost 28870.0.
-request_53,1423.42,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_52,23250.99,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_53,890.52,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_54,16581.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_55,176241.19,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_55,125029.68,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_56,881.56,affordable_with_plan,installments,2025-02-03:881.56,2025-02-03,none,Recommended installments with total cost 881.56.
-request_57,21214.6,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_57,15877.36,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_58,16226000.0,affordable_now,full_payment,2024-12-07:16226000.0,2024-12-07,none,Recommended full_payment with total cost 16226000.0.
 request_59,140600.0,affordable_with_plan,installments,2025-05-04:140600.0,2025-05-04,none,Recommended installments with total cost 140600.0.
 request_60,199.89,affordable_now,full_payment,2026-01-06:199.89,2026-01-06,none,Recommended full_payment with total cost 199.89.
 request_61,29062.0,affordable_with_plan,installments,2024-03-03:29062.0,2024-03-03,none,Recommended installments with total cost 29062.0.
 request_62,404.23,affordable_now,full_payment,2025-08-05:404.23,2025-08-05,none,Recommended full_payment with total cost 404.23.
-request_63,98295.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_64,60233.01,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_65,13024.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_63,88086.45,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_64,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_65,7177.57,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_66,22200.0,affordable_now,full_payment,2026-04-03:22200.0,2026-04-03,none,Recommended full_payment with total cost 22200.0.
-request_67,792.54,affordable_later,wait,2024-09-15:2094.0,2024-09-15,none,Recommended wait with total cost 2094.0.
-request_68,2091.6,affordable_with_plan,installments,2025-02-07:2091.6,2025-02-07,none,Recommended installments with total cost 2091.6.
+request_67,722.2,affordable_later,wait,2024-09-15:2094.0,2024-09-15,none,Recommended wait with total cost 2094.0.
+request_68,1975.07,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_69,529.1,affordable_with_plan,installments,2026-01-04:529.1,2026-01-04,none,Recommended installments with total cost 529.1.
-request_70,93360.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_70,61967.82,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_71,7485050.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_72,11330.0,affordable_now,full_payment,2026-07-05:11330.0,2026-07-05,none,Recommended full_payment with total cost 11330.0.
 request_73,71400.0,affordable_with_plan,installments,2023-01-20:71400.0,2023-01-20,none,Recommended installments with total cost 71400.0.
@@ -53,57 +53,57 @@ request_76,1538.8,not_affordable,not_recommended,none,,none,No safe eligible pay
 request_77,60700.0,affordable_now,full_payment,2025-11-05:60700.0,2025-11-05,none,Recommended full_payment with total cost 60700.0.
 request_78,50200.0,affordable_now,full_payment,2025-10-02:50200.0,2025-10-02,none,Recommended full_payment with total cost 50200.0.
 request_79,1104.08,affordable_with_plan,partial_payment,2024-09-04:1104.08|2024-09-15:1047.52,2024-09-15,none,Recommended partial_payment with total cost 2151.6.
-request_80,158825.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_80,119825.77,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_81,2076.0,affordable_now,full_payment,2026-07-03:2076.0,2026-07-03,none,Recommended full_payment with total cost 2076.0.
-request_82,1102.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_83,31130.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_84,56565.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_85,2422120.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_82,1011.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_83,15036.67,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_84,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_85,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_86,46300.0,affordable_with_plan,installments,2025-08-03:46300.0,2025-08-03,none,Recommended installments with total cost 46300.0.
 request_87,92850.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_88,15557.89,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_88,9052.75,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_89,13756000.0,affordable_with_plan,installments,2025-11-04:13756000.0,2025-11-04,none,Recommended installments with total cost 13756000.0.
 request_90,2560.0,affordable_now,full_payment,2026-07-06:2560.0,2026-07-06,none,Recommended full_payment with total cost 2560.0.
-request_91,1927.2,affordable_with_plan,installments,2024-09-03:1927.2,2024-09-03,none,Recommended installments with total cost 1927.2.
+request_91,1613.89,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_92,34034.0,affordable_now,full_payment,2025-02-05:34034.0,2025-02-05,none,Recommended full_payment with total cost 34034.0.
-request_93,1729.2,affordable_with_plan,installments,2026-04-07:1729.2,2026-04-07,none,Recommended installments with total cost 1729.2.
+request_93,1605.13,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_94,572.0,affordable_now,full_payment,2024-12-04:572.0,2024-12-04,none,Recommended full_payment with total cost 572.0.
 request_95,137865.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_96,90200.0,affordable_with_plan,installments,2026-01-03:90200.0,2026-01-03,none,Recommended installments with total cost 90200.0.
-request_97,8865.89,affordable_with_plan,installments,2024-03-19:8145.28|2024-04-19:8145.28|2024-05-20:8145.28,2024-03-15,none,Recommended installments with total cost 24435.84.
-request_98,17244.7,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_97,8255.8,affordable_with_plan,installments,2024-03-19:8145.28|2024-04-19:8145.28|2024-05-20:8145.28,2024-03-15,none,Recommended installments with total cost 24435.84.
+request_98,13260.64,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_99,18062.0,affordable_now,full_payment,2026-07-04:18062.0,2026-07-04,none,Recommended full_payment with total cost 18062.0.
-request_100,35863.53,affordable_with_plan,installments,2024-06-13:12866.19|2024-07-14:12866.19|2024-08-14:12866.19,2024-06-15,none,Recommended installments with total cost 38598.57.
+request_100,34836.13,affordable_with_plan,installments,2024-06-13:12866.19|2024-07-14:12866.19|2024-08-14:12866.19,2024-06-15,none,Recommended installments with total cost 38598.57.
 request_101,143500.0,affordable_with_plan,installments,2025-11-03:143500.0,2025-11-03,none,Recommended installments with total cost 143500.0.
 request_102,1716.0,affordable_with_plan,installments,2026-04-05:1716.0,2026-04-05,none,Recommended installments with total cost 1716.0.
-request_103,43249.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_103,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_104,17204.0,affordable_with_plan,installments,2025-02-04:17204.0,2025-02-04,none,Recommended installments with total cost 17204.0.
 request_105,53500.0,affordable_with_plan,installments,2026-06-08:53500.0,2026-06-08,none,Recommended installments with total cost 53500.0.
-request_106,1401.7,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_106,1126.38,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_107,2534.4,affordable_with_plan,installments,2025-05-05:2534.4,2025-05-05,none,Recommended installments with total cost 2534.4.
-request_108,7836.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_108,2139.51,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_109,1276.46,affordable_with_plan,installments,2024-03-18:645.98|2024-04-18:645.98|2024-05-19:645.98,2024-03-15,none,Recommended installments with total cost 1937.94.
 request_110,22352.0,affordable_with_plan,installments,2025-08-06:22352.0,2025-08-06,none,Recommended installments with total cost 22352.0.
 request_111,16625000.0,affordable_with_plan,installments,2026-04-03:16625000.0,2026-04-03,none,Recommended installments with total cost 16625000.0.
 request_112,271.7,affordable_now,full_payment,2024-06-05:271.7,2024-06-05,none,Recommended full_payment with total cost 271.7.
 request_113,36500.0,affordable_with_plan,installments,2026-09-04:36500.0,2026-09-04,none,Recommended installments with total cost 36500.0.
 request_114,65300.0,affordable_now,full_payment,2026-01-04:65300.0,2026-01-04,none,Recommended full_payment with total cost 65300.0.
-request_115,27135.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_116,58075.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_115,19667.65,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_116,53978.01,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_117,880.0,affordable_now,full_payment,2026-07-05:880.0,2026-07-05,none,Recommended full_payment with total cost 880.0.
 request_118,738.1,affordable_with_plan,installments,2024-12-07:738.1,2024-12-07,none,Recommended installments with total cost 738.1.
-request_119,130901.01,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_119,93567.32,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_120,7714000.0,affordable_now,full_payment,2026-04-06:7714000.0,2026-04-06,none,Recommended full_payment with total cost 7714000.0.
 request_121,633.6,affordable_now,full_payment,2024-03-03:633.6,2024-03-03,none,Recommended full_payment with total cost 633.6.
 request_122,20558000.0,affordable_with_plan,installments,2025-08-05:20558000.0,2025-08-05,none,Recommended installments with total cost 20558000.0.
 request_123,4076000.0,affordable_now,full_payment,2026-01-07:4076000.0,2026-01-07,none,Recommended full_payment with total cost 4076000.0.
-request_124,2049.56,affordable_with_plan,installments,2024-06-11:1076.12|2024-07-12:1076.12|2024-08-12:1076.12,2024-06-15,none,Recommended installments with total cost 3228.36.
-request_125,6468.0,affordable_now,full_payment,2025-11-06:6468.0,2025-11-06,none,Recommended full_payment with total cost 6468.0.
+request_124,2004.29,affordable_with_plan,installments,2024-06-11:1076.12|2024-07-12:1076.12|2024-08-12:1076.12,2024-06-15,none,Recommended installments with total cost 3228.36.
+request_125,4790.92,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_126,159600.0,affordable_with_plan,installments,2026-07-03:159600.0,2026-07-03,none,Recommended installments with total cost 159600.0.
-request_127,23980.0,affordable_now,full_payment,2024-09-05:23980.0,2024-09-05,none,Recommended full_payment with total cost 23980.0.
-request_128,25168.0,affordable_now,full_payment,2025-02-07:25168.0,2025-02-07,none,Recommended full_payment with total cost 25168.0.
+request_127,15424.47,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_128,22101.07,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_129,288.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_130,917.46,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_130,456.62,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_131,1855.2,affordable_with_plan,installments,2025-05-03:1855.2,2025-05-03,none,Recommended installments with total cost 1855.2.
 request_132,379.86,affordable_now,full_payment,2026-01-05:379.86,2026-01-05,none,Recommended full_payment with total cost 379.86.
 request_133,15770000.0,not_affordable,not_recommended,none,2024-03-07,none,No safe eligible payment method found without dropping below minimum balance.
@@ -111,63 +111,63 @@ request_134,12118200.0,affordable_later,wait,2025-08-15:21831000.0,2025-08-15,no
 request_135,304.8,affordable_with_plan,installments,2026-07-06:304.8,2026-07-06,none,Recommended installments with total cost 304.8.
 request_136,560.4,affordable_now,full_payment,2024-06-03:560.4,2024-06-03,none,Recommended full_payment with total cost 560.4.
 request_137,67960.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_138,1256.94,affordable_with_plan,installments,2026-04-07:1256.94,2026-04-07,none,Recommended installments with total cost 1256.94.
+request_138,878.27,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_139,2185.84,affordable_with_plan,installments,2024-09-07:802.88|2024-10-08:802.88|2024-11-08:802.88,2024-09-15,none,Recommended installments with total cost 2408.64.
-request_140,13079.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_141,55245.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_140,3766.24,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_141,51435.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_142,1263.6,affordable_now,full_payment,2024-12-05:1263.6,2024-12-05,none,Recommended full_payment with total cost 1263.6.
-request_143,8811.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_143,4884.95,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_144,233.34,affordable_now,full_payment,2026-07-04:233.34,2026-07-04,none,Recommended full_payment with total cost 233.34.
-request_145,105613.66,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_145,64738.45,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_146,81465.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_147,741.53,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_148,13181.08,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_147,225.01,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_148,3369.1,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_149,36652.0,affordable_with_plan,installments,2025-11-04:36652.0,2025-11-04,none,Recommended installments with total cost 36652.0.
-request_150,496.1,affordable_with_plan,installments,2026-01-06:496.1,2026-01-06,none,Recommended installments with total cost 496.1.
+request_150,442.86,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_151,26999000.0,affordable_now,full_payment,2024-09-03:26999000.0,2024-09-03,none,Recommended full_payment with total cost 26999000.0.
-request_152,13882.0,affordable_with_plan,installments,2025-02-05:13882.0,2025-02-05,none,Recommended installments with total cost 13882.0.
+request_152,13865.38,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_153,503.6,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_154,1625.8,affordable_with_plan,installments,2024-12-04:1625.8,2024-12-04,none,Recommended installments with total cost 1625.8.
 request_155,112500.0,affordable_now,full_payment,2025-05-06:112500.0,2025-05-06,none,Recommended full_payment with total cost 112500.0.
-request_156,15205.3,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_157,10091850.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_156,4538.9,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_157,8826068.26,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_158,242600.0,affordable_with_plan,installments,2025-08-07:242600.0,2025-08-07,none,Recommended installments with total cost 242600.0.
 request_159,13398.0,affordable_now,full_payment,2026-01-04:13398.0,2026-01-04,none,Recommended full_payment with total cost 13398.0.
-request_160,944.61,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_161,18297950.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_162,10446200.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_163,19304000.0,affordable_with_plan,installments,2024-09-07:19304000.0,2024-09-07,none,Recommended installments with total cost 19304000.0.
+request_160,629.96,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_161,11036680.77,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_162,1941941.22,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_163,12615689.54,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_164,27018000.0,affordable_with_plan,installments,2025-02-04:27018000.0,2025-02-04,none,Recommended installments with total cost 27018000.0.
 request_165,80600.0,affordable_now,full_payment,2026-04-06:80600.0,2026-04-06,none,Recommended full_payment with total cost 80600.0.
 request_166,2907.6,affordable_with_plan,installments,2024-12-03:2907.6,2024-12-03,none,Recommended installments with total cost 2907.6.
 request_167,43802.0,affordable_with_plan,installments,2025-05-05:43802.0,2025-05-05,none,Recommended installments with total cost 43802.0.
-request_168,49380.0,not_affordable,not_recommended,none,2026-01-07,none,No safe eligible payment method found without dropping below minimum balance.
+request_168,38360.29,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_169,41976.0,affordable_now,full_payment,2024-03-04:41976.0,2024-03-04,none,Recommended full_payment with total cost 41976.0.
-request_170,36936000.0,affordable_with_plan,installments,2025-08-06:36936000.0,2025-08-06,none,Recommended installments with total cost 36936000.0.
-request_171,310.65,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_170,35946398.35,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_171,140.04,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_172,10200.0,affordable_with_plan,installments,2024-06-05:10200.0,2024-06-05,none,Recommended installments with total cost 10200.0.
-request_173,83190.53,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_173,18054.7,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_174,1146.2,affordable_with_plan,installments,2026-04-04:1146.2,2026-04-04,none,Recommended installments with total cost 1146.2.
 request_175,2346.3,affordable_now,full_payment,2024-09-06:2346.3,2024-09-06,none,Recommended full_payment with total cost 2346.3.
-request_176,686.95,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_177,1017.6,affordable_now,full_payment,2026-01-05:1017.6,2026-01-05,none,Recommended full_payment with total cost 1017.6.
+request_176,593.22,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_177,801.69,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_178,2938.1,affordable_with_plan,installments,2024-12-07:2938.1,2024-12-07,none,Recommended installments with total cost 2938.1.
-request_179,37957250.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_179,28364904.49,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_180,66500.0,affordable_with_plan,installments,2026-07-06:66500.0,2026-07-06,none,Recommended installments with total cost 66500.0.
-request_181,1233.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_181,1141.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_182,65714.0,affordable_now,full_payment,2025-08-05:65714.0,2025-08-05,none,Recommended full_payment with total cost 65714.0.
-request_183,26866000.0,affordable_with_plan,installments,2026-04-07:26866000.0,2026-04-07,none,Recommended installments with total cost 26866000.0.
+request_183,24226268.26,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_184,47540.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_185,783.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_186,22863.5,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_187,67435.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_188,585.3,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_185,382.71,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_186,1582.95,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_187,36233.63,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_188,350.31,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_189,488.4,affordable_now,full_payment,2026-07-04:488.4,2026-07-04,none,Recommended full_payment with total cost 488.4.
-request_190,1555.8,affordable_later,wait,2024-12-15:2557.5,2024-12-15,none,Recommended wait with total cost 2557.5.
+request_190,1502.83,affordable_later,wait,2024-12-15:2557.5,2024-12-15,none,Recommended wait with total cost 2557.5.
 request_191,664.4,affordable_with_plan,installments,2025-05-03:664.4,2025-05-03,none,Recommended installments with total cost 664.4.
-request_192,384.8,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_193,310.62,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_194,95030.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_192,363.87,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_193,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_194,80953.95,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_195,1170.4,affordable_with_plan,installments,2026-01-06:1170.4,2026-01-06,none,Recommended installments with total cost 1170.4.
 request_196,762.3,affordable_now,full_payment,2024-06-03:762.3,2024-06-03,none,Recommended full_payment with total cost 762.3.
 request_197,50939000.0,affordable_with_plan,installments,2025-11-05:50939000.0,2025-11-05,none,Recommended installments with total cost 50939000.0.
@@ -181,71 +181,71 @@ request_204,588.74,affordable_with_plan,installments,2026-01-04:588.74,2026-01-0
 request_205,10621000.0,affordable_now,full_payment,2024-03-06:10621000.0,2024-03-06,none,Recommended full_payment with total cost 10621000.0.
 request_206,1404.7,affordable_with_plan,installments,2025-08-03:1404.7,2025-08-03,none,Recommended installments with total cost 1404.7.
 request_207,11830.0,affordable_with_plan,installments,2026-07-05:11830.0,2026-07-05,none,Recommended installments with total cost 11830.0.
-request_208,4413000.0,affordable_now,full_payment,2024-06-07:4413000.0,2024-06-07,none,Recommended full_payment with total cost 4413000.0.
-request_209,8625.1,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_210,1360.02,affordable_with_plan,installments,2026-04-06:1360.02,2026-04-06,none,Recommended installments with total cost 1360.02.
-request_211,1227.89,affordable_later,wait,2024-09-15:1788.6,2024-09-15,none,Recommended wait with total cost 1788.6.
-request_212,22344000.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_208,3033455.23,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_209,8127.64,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_210,791.08,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_211,1149.31,affordable_later,wait,2024-09-15:1788.6,2024-09-15,none,Recommended wait with total cost 1788.6.
+request_212,17799647.87,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_213,3362.4,affordable_with_plan,installments,2026-01-07:3362.4,2026-01-07,none,Recommended installments with total cost 3362.4.
-request_214,69750.0,affordable_with_plan,installments,2024-12-04:69750.0,2024-12-04,none,Recommended installments with total cost 69750.0.
+request_214,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_215,29986.0,affordable_with_plan,installments,2025-05-06:29986.0,2025-05-06,none,Recommended installments with total cost 29986.0.
-request_216,1166.8,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_217,31601.97,affordable_with_plan,installments,2024-03-19:12889.07|2024-04-19:12889.07|2024-05-20:12889.07,2024-03-15,none,Recommended installments with total cost 38667.21.
+request_216,609.61,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_217,30174.67,affordable_with_plan,installments,2024-03-19:12889.07|2024-04-19:12889.07|2024-05-20:12889.07,2024-03-15,none,Recommended installments with total cost 38667.21.
 request_218,37942414.8,affordable_with_plan,installments,2025-08-07:21195893.33|2025-09-04:21195893.33|2025-10-02:21195893.33,2025-08-15,none,Recommended installments with total cost 63587679.99.
 request_219,1673.1,affordable_with_plan,installments,2026-04-04:1673.1,2026-04-04,none,Recommended installments with total cost 1673.1.
-request_220,387.32,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_220,0.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_221,109800.0,affordable_now,full_payment,2025-11-03:109800.0,2025-11-03,none,Recommended full_payment with total cost 109800.0.
 request_222,34078.0,affordable_now,full_payment,2026-01-05:34078.0,2026-01-05,none,Recommended full_payment with total cost 34078.0.
 request_223,898.7,affordable_now,full_payment,2024-09-07:898.7,2024-09-07,none,Recommended full_payment with total cost 898.7.
 request_224,10327000.0,affordable_with_plan,installments,2025-02-04:10327000.0,2025-02-04,none,Recommended installments with total cost 10327000.0.
 request_225,18120459.6,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_226,157000.0,affordable_now,full_payment,2024-12-03:157000.0,2024-12-03,none,Recommended full_payment with total cost 157000.0.
-request_227,42755.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_228,10557350.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_227,20854.65,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_228,3399634.27,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_229,727.52,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_230,3537.6,affordable_now,full_payment,2025-08-06:3537.6,2025-08-06,none,Recommended full_payment with total cost 3537.6.
 request_231,35706.0,affordable_with_plan,installments,2026-01-03:35706.0,2026-01-03,none,Recommended installments with total cost 35706.0.
-request_232,1869.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_232,1214.64,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_233,6241000.0,affordable_with_plan,installments,2025-11-07:6241000.0,2025-11-07,none,Recommended installments with total cost 6241000.0.
-request_234,574.25,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_234,320.07,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_235,967.2,affordable_with_plan,installments,2024-09-06:967.2,2024-09-06,none,Recommended installments with total cost 967.2.
-request_236,14404850.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_236,10967561.04,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_237,23826000.0,affordable_now,full_payment,2026-04-05:23826000.0,2026-04-05,none,Recommended full_payment with total cost 23826000.0.
 request_238,663.6,affordable_with_plan,installments,2024-12-07:663.6,2024-12-07,none,Recommended installments with total cost 663.6.
 request_239,642.0,affordable_with_plan,installments,2025-05-04:642.0,2025-05-04,none,Recommended installments with total cost 642.0.
-request_240,39920.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_240,21478.32,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_241,21052000.0,affordable_with_plan,installments,2024-03-03:21052000.0,2024-03-03,none,Recommended installments with total cost 21052000.0.
-request_242,437.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_242,140.81,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_243,17468.0,affordable_now,full_payment,2026-07-07:17468.0,2026-07-07,none,Recommended full_payment with total cost 17468.0.
 request_244,49918.0,affordable_with_plan,installments,2024-06-04:49918.0,2024-06-04,none,Recommended installments with total cost 49918.0.
-request_245,65760.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_245,15832.33,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_246,64086.0,affordable_with_plan,installments,2026-04-03:64086.0,2026-04-03,none,Recommended installments with total cost 64086.0.
 request_247,1059.3,affordable_now,full_payment,2024-09-05:1059.3,2024-09-05,none,Recommended full_payment with total cost 1059.3.
 request_248,1507.36,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_249,342.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_250,28820.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_250,19738.05,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_251,1513.6,affordable_with_plan,installments,2025-05-03:1513.6,2025-05-03,none,Recommended installments with total cost 1513.6.
-request_252,10098500.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_253,2143.57,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_254,1759.6,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_252,9110500.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_253,1534.72,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_254,1060.6,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_255,3345000.0,affordable_now,full_payment,2026-04-06:3345000.0,2026-04-06,none,Recommended full_payment with total cost 3345000.0.
-request_256,218700.0,affordable_with_plan,installments,2024-06-03:218700.0,2024-06-03,none,Recommended installments with total cost 218700.0.
-request_257,1085.2,affordable_later,wait,2025-11-15:1352.4,2025-11-15,none,Recommended wait with total cost 1352.4.
+request_256,182332.32,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_257,953.46,affordable_later,wait,2025-11-15:1352.4,2025-11-15,none,Recommended wait with total cost 1352.4.
 request_258,1113.6,affordable_now,full_payment,2026-01-07:1113.6,2026-01-07,none,Recommended full_payment with total cost 1113.6.
-request_259,627.3,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_260,15059400.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_259,452.96,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_260,11220335.45,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_261,1830.4,affordable_now,full_payment,2026-07-03:1830.4,2026-07-03,none,Recommended full_payment with total cost 1830.4.
 request_262,9236000.0,affordable_now,full_payment,2024-12-05:9236000.0,2024-12-05,none,Recommended full_payment with total cost 9236000.0.
-request_263,14718.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_264,39795.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_263,10027.81,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_264,27381.51,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_265,45970.0,affordable_now,full_payment,2024-03-06:45970.0,2024-03-06,none,Recommended full_payment with total cost 45970.0.
 request_266,935.0,affordable_with_plan,installments,2025-08-03:935.0,2025-08-03,none,Recommended installments with total cost 935.0.
 request_267,1925.0,affordable_with_plan,installments,2026-01-05:1925.0,2026-01-05,none,Recommended installments with total cost 1925.0.
-request_268,1512.52,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_268,1127.51,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_269,15490.0,affordable_with_plan,installments,2025-11-04:15490.0,2025-11-04,none,Recommended installments with total cost 15490.0.
-request_270,535.4,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_271,84760.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_272,8815924.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_273,13372200.0,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
-request_274,2713.7,affordable_with_plan,installments,2024-12-04:2713.7,2024-12-04,none,Recommended installments with total cost 2713.7.
+request_270,512.5,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_271,57148.61,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_272,7551157.07,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_273,8669756.31,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
+request_274,2668.48,not_affordable,not_recommended,none,,none,No safe eligible payment method found without dropping below minimum balance.
 request_275,15884000.0,affordable_now,full_payment,2025-05-06:15884000.0,2025-05-06,none,Recommended full_payment with total cost 15884000.0.

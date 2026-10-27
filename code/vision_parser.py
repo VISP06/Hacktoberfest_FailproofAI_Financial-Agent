@@ -5,6 +5,7 @@ import time
 import pandas as pd
 from litellm import completion
 from dotenv import load_dotenv
+import failproofai_sdk as fp
 
 load_dotenv()
 
@@ -36,10 +37,26 @@ def get_receipt_amount(image_path, max_retries=10):
     
     for attempt in range(max_retries):
         try:
+            request_id = f"vision-{os.path.basename(image_path)}-{attempt}"
+            fp.event.model_request(
+                session_id=request_id,
+                agent_id="vision-parser",
+                model=model_name,
+                request_id=request_id,
+            )
             response = completion(
                 model=model_name,
                 messages=messages,
                 response_format={"type": "json_object"}
+            )
+            usage = getattr(response, "usage", None)
+            fp.event.model_response(
+                session_id=request_id,
+                agent_id="vision-parser",
+                model=model_name,
+                request_id=request_id,
+                input_tokens=getattr(usage, "prompt_tokens", None),
+                output_tokens=getattr(usage, "completion_tokens", None),
             )
             result_str = response.choices[0].message.content
             result = json.loads(result_str)
@@ -52,6 +69,13 @@ def get_receipt_amount(image_path, max_retries=10):
             time.sleep(wait_time)
                 
     print(f"  [!] Failed to extract amount from {image_path} after {max_retries} attempts.")
+    fp.event.error(
+        session_id=f"vision-{os.path.basename(image_path)}",
+        agent_id="vision-parser",
+        error_type="ExtractionFailure",
+        message="Receipt extraction failed after all retries; wrote 0.0",
+        image_path=os.path.basename(image_path),
+    )
     return 0.0
 
 def patch_missing_amounts(dataset_dir="dataset"):

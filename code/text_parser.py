@@ -5,6 +5,7 @@ import time
 import pandas as pd
 from litellm import completion
 from dotenv import load_dotenv
+import failproofai_sdk as fp
 
 load_dotenv()
 
@@ -55,10 +56,26 @@ def analyze_message_batch(batch_df, max_retries=3):
     
     for attempt in range(max_retries):
         try:
+            request_id = f"text-{batch_df.iloc[0]['message_id']}-{attempt}"
+            fp.event.model_request(
+                session_id=request_id,
+                agent_id="text-parser",
+                model=model_name,
+                request_id=request_id,
+            )
             response = completion(
                 model=model_name,
                 messages=messages,
                 response_format={"type": "json_object"}
+            )
+            usage = getattr(response, "usage", None)
+            fp.event.model_response(
+                session_id=request_id,
+                agent_id="text-parser",
+                model=model_name,
+                request_id=request_id,
+                input_tokens=getattr(usage, "prompt_tokens", None),
+                output_tokens=getattr(usage, "completion_tokens", None),
             )
             result_str = response.choices[0].message.content
             parsed_json = extract_json_from_text(result_str)
@@ -66,6 +83,12 @@ def analyze_message_batch(batch_df, max_retries=3):
             if parsed_json:
                 return parsed_json
             else:
+                fp.event.error(
+                    session_id=request_id,
+                    agent_id="text-parser",
+                    error_type="JSONParseError",
+                    message="Unable to parse model JSON response",
+                )
                 print(f"  [!] JSON sanitize retry (Attempt {attempt + 1}/{max_retries})")
                 
         except Exception as e:
@@ -130,6 +153,13 @@ def parse_messages(dataset_dir="dataset"):
                 analysis = batch_results[msg_id]
             else:
                 analysis = rule_based_fallback(msg_text)
+                fp.event.error(
+                    session_id=f"text-{msg_id}",
+                    agent_id="text-parser",
+                    error_type="RuleBasedFallback",
+                    message="rule_based_fallback used",
+                    message_id=msg_id,
+                )
                 print(f"   [Fallback applied for {msg_id} -> {analysis['action']}]")
             
             existing_results[msg_id] = {
