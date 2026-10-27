@@ -1,4 +1,5 @@
 import os
+import itertools
 import pandas as pd
 import datetime
 from dotenv import load_dotenv
@@ -25,6 +26,59 @@ def format_payment_plan(plan_dict):
         return str(int(round(value))) if value.is_integer() else f"{value:.2f}"
     return "|".join([f"{d}:{format_amount(plan_dict[d])}" for d in sorted_dates])
 
+
+def _eligible_spending_changes(engine, user_id, request_date, profile):
+    events = engine.forecast.valid_events(user_id)
+    series = engine.forecast.recurring_series(events, datetime.date.fromisoformat(request_date[:10]))
+    recurring_keys = {item["key"] for item in series}
+    protected = {x.strip().lower() for x in str(profile.expense_categories_to_protect).split("|") if x.strip()}
+    reducible = {x.strip().lower() for x in str(profile.expense_categories_user_is_willing_to_reduce).split("|") if x.strip()}
+    stoppable = {x.strip().lower() for x in str(profile.expense_categories_user_is_willing_to_stop).split("|") if x.strip()}
+    candidates = {}
+    for _, row in events.iterrows():
+        key = (str(row.user_id), str(row.direction), str(row.description))
+        category = str(row.category).lower()
+        flexibility = str(row.flexibility).lower()
+        if str(row.direction).lower() not in {"debit", "out"}:
+            continue
+        if category in protected or category not in reducible.union(stoppable):
+            continue
+        if flexibility == "reducible" and category in reducible:
+            action, amount = "reduce_to", row.minimum_allowed_amount
+        elif flexibility == "reducible_or_stoppable" and category in reducible:
+            action, amount = "reduce_to", row.minimum_allowed_amount
+        elif flexibility == "stoppable" and category in stoppable:
+            action, amount = "stop", 0.0
+        else:
+            continue
+        if action == "reduce_to" and pd.isna(amount):
+            continue
+        # Use the latest row as the representative event for its series.
+        parsed = engine.forecast._date(row.event_date)
+        previous = candidates.get(key)
+        if previous is None or parsed > previous["date"]:
+            candidates[key] = {
+                "event_id": str(row.event_id), "action": action,
+                "amount": float(amount), "date": parsed,
+                "benefit": max(0.0, float(row.amount) - float(amount)) if not pd.isna(row.amount) else 0.0,
+                "text": (f"{action}:{row.event_id}:{float(amount):g}"
+                          if action == "reduce_to" else f"stop:{row.event_id}"),
+            }
+    return list(candidates.values())
+
+
+def _find_spending_changes(engine, user_id, request_date, requested_amount, forecast_options, profile):
+    candidates = _eligible_spending_changes(engine, user_id, request_date, profile)
+    for count in range(1, min(3, len(candidates)) + 1):
+        for selected in itertools.combinations(candidates, count):
+            changes = [{key: item[key] for key in ("event_id", "action", "amount")} for item in selected]
+            balances, minimum = engine.simulate_90_days(
+                user_id, request_date, spending_changes=changes, **forecast_options
+            )
+            if min(balances.values()) - float(requested_amount) >= minimum:
+                return changes, "|".join(item["text"] for item in selected)
+    return None, "none"
+
 def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=None):
     print("=== Running Buy or Wait? Final Decision Engine ===")
 
@@ -32,6 +86,10 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
     requests_df = pd.read_csv(requests_path)
     engine = FinancialEngine(DATASET_DIR)
     forecast_options = {**DEFAULT_FORECAST_OPTIONS, **(forecast_options or {})}
+    simulation_options = {
+        key: value for key, value in forecast_options.items()
+        if key != "enable_spending_changes"
+    }
 
     results = []
 
@@ -54,7 +112,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                     input={"user_id": user_id, "start_date": req_date},
                 ) as tool:
                     balances, min_bal = engine.simulate_90_days(
-                        user_id, req_date, **forecast_options
+                        user_id, req_date, **simulation_options
                     )
                     tool.output = {"min_balance": min_bal}
 
@@ -69,6 +127,15 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                 # Calculate amount_safe_to_pay today
                 buffer_today = min(balances.values()) - min_bal
                 amount_safe_today = min(req_amount, max(0.0, buffer_today)) if buffer_today > 0 else 0.0
+
+                spending_changes = None
+                spending_changes_text = "none"
+                if (forecast_options.get("enable_spending_changes", True)
+                        and amount_safe_today < req_amount
+                        and "full_payment" in considered_methods):
+                    spending_changes, spending_changes_text = _find_spending_changes(
+                        engine, user_id, req_date, req_amount, simulation_options, user_profile
+                    )
 
                 # The date is capacity-only: for each candidate d, check every day
                 # from d through request_date+90 (not the days before d).
@@ -97,19 +164,28 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                     candidates.append({
                         "method": "full_payment", "plan_dict": {req_date: req_amount},
                         "status": "affordable_now", "completion_date": req_date,
-                        "cost": req_amount, "start_date": req_date, "num_payments": 1, "opt_id": "zzzzzz"
+                        "cost": req_amount, "start_date": req_date, "num_payments": 1, "opt_id": "zzzzzz",
+                        "spending_changes": "none", "change_count": 0,
+                    })
+                elif spending_changes:
+                    candidates.append({
+                        "method": "full_payment", "plan_dict": {req_date: req_amount},
+                        "status": "affordable_with_plan", "completion_date": req_date,
+                        "cost": req_amount, "start_date": req_date, "num_payments": 1, "opt_id": "zzzzzz",
+                        "spending_changes": spending_changes_text, "change_count": len(spending_changes),
                     })
 
                 # Partial Payment
                 if allows_partial and "partial_payment" in considered_methods:
                     if 0 < amount_safe_today < req_amount and earliest_full_date:
                         if earliest_full_date <= desired_date:
-                            partial_plan = {req_date: amount_safe_today, earliest_full_date: req_amount - amount_safe_today}
+                                partial_plan = {req_date: amount_safe_today, earliest_full_date: req_amount - amount_safe_today}
                             if is_plan_safe(partial_plan):
                                 candidates.append({
                                     "method": "partial_payment", "plan_dict": partial_plan,
                                     "status": "affordable_with_plan", "completion_date": earliest_full_date,
-                                    "cost": req_amount, "start_date": req_date, "num_payments": 2, "opt_id": "zzzzzz"
+                                    "cost": req_amount, "start_date": req_date, "num_payments": 2, "opt_id": "zzzzzz",
+                                    "spending_changes": "none", "change_count": 0,
                                 })
 
                 # Installments
@@ -141,7 +217,8 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                             candidates.append({
                                 "method": "installments", "plan_dict": inst_plan,
                                 "status": "affordable_with_plan", "completion_date": last_date,
-                                "cost": total_cost, "start_date": first_date_str, "num_payments": num_pmts, "opt_id": opt_id
+                                "cost": total_cost, "start_date": first_date_str, "num_payments": num_pmts, "opt_id": opt_id,
+                                "spending_changes": "none", "change_count": 0,
                             })
 
                 # Wait
@@ -149,17 +226,18 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                     candidates.append({
                         "method": "wait", "plan_dict": {earliest_full_date: req_amount},
                         "status": "affordable_later", "completion_date": earliest_full_date,
-                        "cost": req_amount, "start_date": earliest_full_date, "num_payments": 1, "opt_id": "zzzzzz"
+                        "cost": req_amount, "start_date": earliest_full_date, "num_payments": 1, "opt_id": "zzzzzz",
+                        "spending_changes": "none", "change_count": 0,
                     })
 
                 # 3. Apply Strict Type-Safe 6-Rule Tie-Breaker
                 if candidates:
                     def sort_key(c):
                         meets_deadline = 0 if str(c["completion_date"]) <= desired_date else 1
-                        spending_changes = 0
+                        spending_change_count = int(c.get("change_count", 0))
                         return (
                             meets_deadline,
-                            spending_changes,
+                            spending_change_count,
                             float(c["cost"]),
                             str(c["start_date"]),
                             int(c["num_payments"]),
@@ -181,7 +259,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                         "recommended_payment_method": best_plan["method"],
                         "payment_plan": format_payment_plan(best_plan["plan_dict"]),
                         "earliest_date_for_full_payment": earliest_full_date,
-                        "spending_changes_needed": "none",
+                        "spending_changes_needed": best_plan["spending_changes"],
                         "decision_explanation": f"Recommended {best_plan['method']} with total cost {best_plan['cost']}."
                     })
                 else:

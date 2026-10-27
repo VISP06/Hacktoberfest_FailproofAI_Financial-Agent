@@ -201,7 +201,8 @@ class Forecast:
 
     def simulate(self, user_id, start_date_str, variable_category_set="all_non_recurring_fixed_flexibility_spending",
                  variable_factor=1.0, trailing_window_days=90, day_stability_tolerance=0,
-                 min_recurring_months=3, include_request_date=False, amount_mode="latest", additional_payments=None):
+                 min_recurring_months=3, include_request_date=False, amount_mode="latest", additional_payments=None,
+                 spending_changes=None):
         start = dt.date.fromisoformat(str(start_date_str)[:10])
         end = start + dt.timedelta(days=90)
         profile = self.profiles.loc[str(user_id)]
@@ -209,6 +210,14 @@ class Forecast:
         events = self.valid_events(user_id)
         series = self.recurring_series(events, start, min_recurring_months, day_stability_tolerance, include_request_date, amount_mode)
         recurring_keys = {s["key"] for s in series}
+        changes_by_key = {}
+        for change in spending_changes or []:
+            event = events[events.event_id.astype(str).eq(str(change["event_id"]))]
+            if event.empty:
+                continue
+            row = event.iloc[0]
+            key = (str(row.user_id), str(row.direction), str(row.description))
+            changes_by_key[key] = change
         by_day, replacement_months = {}, set()
 
         future = events.copy()
@@ -222,6 +231,9 @@ class Forecast:
             if str(row.status).lower() == "pending" and not self._is_credit(row):
                 pass
             amount = self.convert_to_home_currency(row.amount, row.currency, home, day.isoformat())
+            change = changes_by_key.get((str(row.user_id), str(row.direction), str(row.description)))
+            if change and not self._is_credit(row):
+                amount = self.convert_to_home_currency(change["amount"], row.currency, home, day.isoformat())
             by_day[day.isoformat()] = by_day.get(day.isoformat(), 0.0) + (amount if self._is_credit(row) else -amount)
             if str(row.status).lower() == "scheduled":
                 replacement_months.add((day.year, day.month, str(row.direction).lower(), str(row.category)))
@@ -231,7 +243,9 @@ class Forecast:
             for _ in range(5):
                 day = self._month_date(month.year, month.month, s["day"])
                 if start <= day <= end and (day.year, day.month, s["key"][1].lower(), s["category"]) not in replacement_months:
-                    amount = self.convert_to_home_currency(s["amount"], s["currency"], home, day.isoformat())
+                    change = changes_by_key.get(s["key"])
+                    series_amount = change["amount"] if change else s["amount"]
+                    amount = self.convert_to_home_currency(series_amount, s["currency"], home, day.isoformat())
                     by_day[day.isoformat()] = by_day.get(day.isoformat(), 0.0) + (amount if s["key"][1].lower() in {"credit", "in"} else -amount)
                 month = dt.date(month.year + (month.month == 12), 1 if month.month == 12 else month.month + 1, 1)
 
@@ -246,7 +260,11 @@ class Forecast:
         variable_total = 0.0
         for _, row in historical.iterrows():
             if self._is_variable(row, recurring_keys) and (categories is None or str(row.category).lower() in categories) and not pd.isna(row.amount):
-                variable_total += self.convert_to_home_currency(row.amount, row.currency, home, row.parsed_date.isoformat())
+                change = changes_by_key.get((str(row.user_id), str(row.direction), str(row.description)))
+                historical_amount = change["amount"] if change else row.amount
+                variable_total += self.convert_to_home_currency(
+                    historical_amount, row.currency, home, row.parsed_date.isoformat()
+                )
         daily_variable = variable_total / float(trailing_window_days) * float(variable_factor)
         balances, running = {}, float(profile.current_available_balance)
         for offset in range(91):

@@ -15,7 +15,13 @@ sys.path.insert(0, os.path.join(ROOT_DIR, "code"))
 
 from financial_engine import FinancialEngine
 from main import run_pipeline
-from evaluate import calibrate
+
+
+DIAGNOSE_FORECAST_OPTIONS = {
+    "variable_category_set": "protected_categories_only",
+    "variable_factor": 0.875,
+    "trailing_window_days": 60,
+}
 
 
 def forecast_category_totals(engine, user_id, start_text, options):
@@ -85,8 +91,11 @@ def main():
     expected = pd.read_csv(sample_path)
     quiet = io.StringIO()
     with contextlib.redirect_stdout(quiet):
-        options, _ = calibrate(sample_path)
-        actual = run_pipeline(requests_path=sample_path, output_file=os.devnull, forecast_options=options)
+        actual = run_pipeline(
+            requests_path=sample_path, output_file=os.devnull,
+            forecast_options=DIAGNOSE_FORECAST_OPTIONS,
+        )
+    options = DIAGNOSE_FORECAST_OPTIONS
     engine = FinancialEngine(os.path.join(ROOT_DIR, "dataset"))
     actual_by_id = actual.set_index("request_id")
     errors = []
@@ -98,12 +107,13 @@ def main():
         totals = forecast_category_totals(engine, user_id, request.request_date, options)
         predicted = float(actual_by_id.loc[request_id, "amount_safe_to_pay"])
         expected_amount = float(request.amount_safe_to_pay)
-        error = abs(predicted - expected_amount)
-        errors.append((error, request_id))
+        absolute_error = abs(predicted - expected_amount)
+        relative_error = absolute_error / max(abs(expected_amount), 1.0)
+        errors.append((relative_error, absolute_error, request_id))
         print(f"{request_id}: balance={engine.profiles.loc[user_id, 'current_available_balance']}, minimum_balance={minimum}; expected_amount_safe_to_pay={expected_amount}, predicted_amount_safe_to_pay={predicted}; forecast_minimum_date={minimum_date}, forecast_minimum_value={balances[minimum_date]}; forecast_income_by_category={totals['income']}; forecast_expense_by_category={totals['expense']}")
-    print("\n7 requests with largest absolute error:")
-    for error, request_id in sorted(errors, reverse=True)[:7]:
-        print(f"{request_id}: absolute_error={error}")
+    print("\n7 requests with largest relative error:")
+    for relative_error, absolute_error, request_id in sorted(errors, reverse=True)[:7]:
+        print(f"{request_id}: relative_error={relative_error}, absolute_error={absolute_error}")
 
 
 if __name__ == "__main__":

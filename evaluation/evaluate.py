@@ -77,8 +77,10 @@ def calibrate(sample_path):
                         "trailing_window_days": window,
                     }
                     with contextlib.redirect_stdout(io.StringIO()):
-                        actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
-                                              forecast_options=options)
+                        actual = run_pipeline(
+                            requests_path=sample_path, output_file=os.devnull,
+                            forecast_options={**options, "enable_spending_changes": False},
+                        )
                     train_actual = actual[actual["request_id"].isin(train["request_id"])]
                     candidates.append((score(train, train_actual), options))
     finally:
