@@ -1,8 +1,11 @@
 import math
 import os
 import sys
+import contextlib
+import io
 
 import pandas as pd
+import failproofai_sdk as fp
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,11 +23,10 @@ CHECK_COLUMNS = [
 ]
 AMOUNT_TOLERANCE = 0.01
 VARIABLE_CATEGORY_SETS = [
-    "groceries_only",
-    "groceries+transport",
+    "protected_categories_only",
     "all_non_recurring_fixed_flexibility_spending",
 ]
-VARIABLE_FACTORS = [0.25, 0.5, 0.75, 1.0, 1.25]
+VARIABLE_FACTORS = [0.5 + 0.125 * i for i in range(9)]
 TRAILING_WINDOWS = [30, 60, 90]
 
 
@@ -64,18 +66,23 @@ def calibrate(sample_path):
     train = expected.iloc[:17].copy()
     held_out = expected.iloc[17:].copy()
     candidates = []
-    for category_set in VARIABLE_CATEGORY_SETS:
-        for factor in VARIABLE_FACTORS:
-            for window in TRAILING_WINDOWS:
-                options = {
-                    "variable_category_set": category_set,
-                    "variable_factor": factor,
-                    "trailing_window_days": window,
-                }
-                actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
-                                      forecast_options=options)
-                train_actual = actual[actual["request_id"].isin(train["request_id"])]
-                candidates.append((score(train, train_actual), options))
+    fp.configure(environment="calibration")
+    try:
+        for category_set in VARIABLE_CATEGORY_SETS:
+            for factor in VARIABLE_FACTORS:
+                for window in TRAILING_WINDOWS:
+                    options = {
+                        "variable_category_set": category_set,
+                        "variable_factor": factor,
+                        "trailing_window_days": window,
+                    }
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
+                                              forecast_options=options)
+                    train_actual = actual[actual["request_id"].isin(train["request_id"])]
+                    candidates.append((score(train, train_actual), options))
+    finally:
+        fp.configure(environment="dev")
     candidates.sort(key=lambda item: item[0][0:2] + (-item[0][2],))
     best_score, best_options = candidates[0]
     held_actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,

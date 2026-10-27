@@ -145,10 +145,25 @@ class Forecast:
         if not include_request_date:
             settled = settled[settled.parsed_date < request_date]
         series = []
-        for (user_id, direction, description), group in settled.groupby(["user_id", "direction", "description"], dropna=False):
+        settled["_salary_group"] = (
+            settled.direction.astype(str).str.lower().isin({"credit", "in"})
+            & settled.category.astype(str).str.lower().eq("salary")
+        )
+        # Salary descriptions and categories can vary.  The day of month is
+        # the income-series identity; debit series retain description identity.
+        settled["_series_group"] = settled.apply(
+            lambda row: f"salary:{row.parsed_date.day}"
+            if row._salary_group else f"description:{row.description}", axis=1
+        )
+        for (user_id, direction, series_group), group in settled.groupby(
+            ["user_id", "direction", "_series_group"], dropna=False
+        ):
+            is_salary = str(series_group).startswith("salary:")
+            description = group.description.iloc[-1]
             months = {(d.year, d.month) for d in group.parsed_date}
             days = [d.day for d in group.parsed_date]
-            if len(months) < int(min_months) or max(days) - min(days) > int(day_tolerance):
+            required_months = 2 if is_salary else int(min_months)
+            if len(months) < required_months or max(days) - min(days) > int(day_tolerance):
                 continue
             latest = group.sort_values("parsed_date").iloc[-1]
             latest_date = latest.parsed_date
@@ -156,7 +171,11 @@ class Forecast:
                 continue
             amount = float(group.amount.dropna().iloc[-1]) if amount_mode == "latest" else float(group.amount.mean())
             series.append({
-                "key": (str(user_id), str(direction), str(description)),
+                "key": (
+                    (str(user_id), str(direction), str(series_group))
+                    if is_salary
+                    else (str(user_id), str(direction), str(description))
+                ),
                 "category": str(latest.category), "event_type": str(latest.event_type),
                 "amount": amount, "currency": str(latest.currency), "day": latest_date.day,
             })
@@ -176,7 +195,6 @@ class Forecast:
         return (
             str(row.direction).lower() in {"debit", "out"}
             and str(row.event_type).lower() == "expense"
-            and str(row.flexibility).lower() != "fixed"
             and str(row.category).lower() not in {"transfer", "investment", "investment_purchase"}
             and (str(row.user_id), str(row.direction), str(row.description)) not in recurring_keys
         )
