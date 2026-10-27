@@ -15,10 +15,10 @@ def format_payment_plan(plan_dict):
     sorted_dates = sorted(plan_dict.keys())
     return "|".join([f"{d}:{round(plan_dict[d], 2)}" for d in sorted_dates])
 
-def run_pipeline():
+def run_pipeline(requests_path=None, output_file=OUTPUT_FILE):
     print("=== Running Buy or Wait? Final Decision Engine ===")
     
-    requests_path = os.path.join(DATASET_DIR, "requests.csv")
+    requests_path = requests_path or os.path.join(DATASET_DIR, "requests.csv")
     requests_df = pd.read_csv(requests_path)
     engine = FinancialEngine(DATASET_DIR)
     
@@ -162,8 +162,9 @@ def run_pipeline():
             })
 
     output_df = pd.DataFrame(results)
-    output_df.to_csv(OUTPUT_FILE, index=False)
-    print(f"Successfully evaluated and ranked {len(output_df)} requests into {OUTPUT_FILE}")
+    output_df.to_csv(output_file, index=False)
+    print(f"Successfully evaluated and ranked {len(output_df)} requests into {output_file}")
+    return output_df
 
 if __name__ == "__main__":
     run_pipeline()
