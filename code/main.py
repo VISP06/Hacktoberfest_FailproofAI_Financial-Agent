@@ -4,6 +4,7 @@ import pandas as pd
 import datetime
 from dotenv import load_dotenv
 from financial_engine import FinancialEngine
+from forecast import FORECAST_CONFIG
 import failproofai_sdk as fp
 
 load_dotenv()
@@ -11,11 +12,6 @@ fp.configure(environment="dev")
 
 DATASET_DIR = "dataset"
 OUTPUT_FILE = "output.csv"
-DEFAULT_FORECAST_OPTIONS = {
-    "variable_category_set": "all_non_recurring_fixed_flexibility_spending",
-    "variable_factor": 1.0,
-    "trailing_window_days": 60,
-}
 
 def format_payment_plan(plan_dict):
     if not plan_dict:
@@ -85,7 +81,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
     requests_path = requests_path or os.path.join(DATASET_DIR, "requests.csv")
     requests_df = pd.read_csv(requests_path)
     engine = FinancialEngine(DATASET_DIR)
-    forecast_options = {**DEFAULT_FORECAST_OPTIONS, **(forecast_options or {})}
+    forecast_options = {**FORECAST_CONFIG, **(forecast_options or {})}
     simulation_options = {
         key: value for key, value in forecast_options.items()
         if key != "enable_spending_changes"
@@ -179,7 +175,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                 if allows_partial and "partial_payment" in considered_methods:
                     if 0 < amount_safe_today < req_amount and earliest_full_date:
                         if earliest_full_date <= desired_date:
-                                partial_plan = {req_date: amount_safe_today, earliest_full_date: req_amount - amount_safe_today}
+                            partial_plan = {req_date: amount_safe_today, earliest_full_date: req_amount - amount_safe_today}
                             if is_plan_safe(partial_plan):
                                 candidates.append({
                                     "method": "partial_payment", "plan_dict": partial_plan,
@@ -192,6 +188,8 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                 if "installments" in considered_methods:
                     req_options = engine.payment_options[engine.payment_options["request_id"] == req_id]
                     for _, opt in req_options.iterrows():
+                        if str(opt.get("payment_method", "")).strip().lower() != "installments":
+                            continue
                         opt_id = str(opt["payment_option_id"]) if not pd.isna(opt["payment_option_id"]) else "zzzzzz"
 
                         num_pmts = int(opt["number_of_payments"]) if not pd.isna(opt["number_of_payments"]) else 1

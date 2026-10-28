@@ -3,6 +3,7 @@ import os
 import sys
 import contextlib
 import io
+import argparse
 
 import pandas as pd
 import failproofai_sdk as fp
@@ -12,6 +13,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT_DIR, "code"))
 
 from main import run_pipeline
+from forecast import FORECAST_CONFIG
 
 
 CHECK_COLUMNS = [
@@ -108,13 +110,33 @@ def calibrate(sample_path):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--quick", dest="mode", action="store_const", const="quick",
+        help="Use the calibrated forecast configuration (default).",
+    )
+    mode.add_argument(
+        "--calibrate", dest="mode", action="store_const", const="calibrate",
+        help="Run the full forecast grid search.",
+    )
+    parser.set_defaults(mode="quick")
+    args = parser.parse_args()
+
     sample_path = os.path.join(ROOT_DIR, "dataset", "sample_requests.csv")
     expected = pd.read_csv(sample_path)
 
-    # Tune only on the first 17 rows and report on the held-out 8.
-    best_options, _ = calibrate(sample_path)
-    actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
-                          forecast_options=best_options)
+    if args.mode == "calibrate":
+        # Tune only on the first 17 rows and report on the held-out 8.
+        options, _ = calibrate(sample_path)
+    else:
+        options = FORECAST_CONFIG
+
+    # The pipeline has its own operational banner; keep evaluation output focused
+    # on the accuracy summary.
+    with contextlib.redirect_stdout(io.StringIO()):
+        actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
+                              forecast_options=options)
     actual_by_id = actual.set_index("request_id")
 
     print("\nPer-column accuracy:")

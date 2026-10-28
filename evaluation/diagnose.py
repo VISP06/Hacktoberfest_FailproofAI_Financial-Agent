@@ -14,14 +14,8 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT_DIR, "code"))
 
 from financial_engine import FinancialEngine
+from forecast import FORECAST_CONFIG
 from main import run_pipeline
-
-
-DIAGNOSE_FORECAST_OPTIONS = {
-    "variable_category_set": "protected_categories_only",
-    "variable_factor": 0.875,
-    "trailing_window_days": 60,
-}
 
 
 def forecast_category_totals(engine, user_id, start_text, options):
@@ -93,9 +87,9 @@ def main():
     with contextlib.redirect_stdout(quiet):
         actual = run_pipeline(
             requests_path=sample_path, output_file=os.devnull,
-            forecast_options=DIAGNOSE_FORECAST_OPTIONS,
+            forecast_options=FORECAST_CONFIG,
         )
-    options = DIAGNOSE_FORECAST_OPTIONS
+    options = FORECAST_CONFIG
     engine = FinancialEngine(os.path.join(ROOT_DIR, "dataset"))
     actual_by_id = actual.set_index("request_id")
     errors = []

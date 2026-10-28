@@ -12,6 +12,13 @@ import failproofai_sdk as fp
 import pandas as pd
 
 
+FORECAST_CONFIG = {
+    "variable_category_set": "protected_categories_only",
+    "variable_factor": 0.875,
+    "trailing_window_days": 60,
+}
+
+
 class Forecast:
     def __init__(self, dataset_dir="dataset"):
         self.dataset_dir = dataset_dir
