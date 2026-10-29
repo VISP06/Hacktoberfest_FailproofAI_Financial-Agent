@@ -57,12 +57,14 @@ class FinancialEngine:
 
     def simulate_90_days(self, user_id, start_date_str, additional_payments=None,
                          variable_category_set="all_non_recurring_fixed_flexibility_spending",
-                         variable_factor=1.0, trailing_window_days=90, **forecast_options):
+                         variable_factor=1.0, trailing_window_days=90, income_classes=None,
+                         variable_income_policy="exclude", **forecast_options):
         category_set = self._selected_variable_categories(variable_category_set)
         return self.forecast.simulate(
             user_id, start_date_str, additional_payments=additional_payments,
             variable_category_set=category_set, variable_factor=variable_factor,
             trailing_window_days=trailing_window_days, **forecast_options,
+            income_classes=income_classes, variable_income_policy=variable_income_policy,
         )
 
     def calculate_amount_safe_to_pay(self, user_id, request_date_str, requested_amount, **forecast_options):

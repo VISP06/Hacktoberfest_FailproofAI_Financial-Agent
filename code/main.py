@@ -5,6 +5,7 @@ import datetime
 from dotenv import load_dotenv
 from financial_engine import FinancialEngine
 from forecast import FORECAST_CONFIG
+from income_classifier import IncomeClassifier
 import failproofai_sdk as fp
 
 load_dotenv()
@@ -82,6 +83,13 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
     requests_df = pd.read_csv(requests_path)
     engine = FinancialEngine(DATASET_DIR)
     forecast_options = {**FORECAST_CONFIG, **(forecast_options or {})}
+    income_environment = forecast_options.pop("income_environment", "dev")
+    classifier = IncomeClassifier(DATASET_DIR)
+    income_classes = classifier.classify_requests(
+        requests_df, environment=income_environment,
+        print_summary=os.path.basename(requests_path) == "sample_requests.csv" and income_environment == "dev",
+    )
+    forecast_options["income_classes"] = income_classes
     simulation_options = {
         key: value for key, value in forecast_options.items()
         if key != "enable_spending_changes"
@@ -275,6 +283,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
     output_df = pd.DataFrame(results)
     output_df.to_csv(output_file, index=False)
     print(f"Successfully evaluated and ranked {len(output_df)} requests into {output_file}")
+    print(f"Income classifier: model_calls={classifier.model_calls}, cache_hits={classifier.cache_hits}, failures={classifier.failures}")
     return output_df
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ FORECAST_CONFIG = {
     "variable_category_set": "protected_categories_only",
     "variable_factor": 0.875,
     "trailing_window_days": 60,
+    "variable_income_policy": "exclude",
 }
 
 
@@ -184,7 +185,8 @@ class Forecast:
                     else (str(user_id), str(direction), str(description))
                 ),
                 "category": str(latest.category), "event_type": str(latest.event_type),
-                "amount": amount, "currency": str(latest.currency), "day": latest_date.day,
+                "amount": amount, "minimum_amount": float(group.amount.dropna().min()) if not group.amount.dropna().empty else amount,
+                "currency": str(latest.currency), "day": latest_date.day,
             })
         return series
 
@@ -209,7 +211,7 @@ class Forecast:
     def simulate(self, user_id, start_date_str, variable_category_set="all_non_recurring_fixed_flexibility_spending",
                  variable_factor=1.0, trailing_window_days=90, day_stability_tolerance=0,
                  min_recurring_months=3, include_request_date=False, amount_mode="latest", additional_payments=None,
-                 spending_changes=None):
+                 spending_changes=None, income_classes=None, variable_income_policy="exclude"):
         start = dt.date.fromisoformat(str(start_date_str)[:10])
         end = start + dt.timedelta(days=90)
         profile = self.profiles.loc[str(user_id)]
@@ -246,13 +248,26 @@ class Forecast:
                 replacement_months.add((day.year, day.month, str(row.direction).lower(), str(row.category)))
 
         for s in series:
+            if s["key"][1].lower() in {"credit", "in"}:
+                class_row = (income_classes or {}).get((str(user_id), start.isoformat(), str(s["key"][2])))
+                income_class = (class_row or {}).get("class", "unknown")
+                if income_class == "unknown" or income_class in {"one_off", "ended"}:
+                    continue
+                if income_class == "variable_unconfirmed":
+                    if variable_income_policy == "exclude":
+                        continue
+                    series_amount = s["minimum_amount"]
+                else:
+                    series_amount = s["amount"]
+            else:
+                series_amount = s["amount"]
             month = dt.date(start.year, start.month, 1)
             for _ in range(5):
                 day = self._month_date(month.year, month.month, s["day"])
                 if start <= day <= end and (day.year, day.month, s["key"][1].lower(), s["category"]) not in replacement_months:
                     change = changes_by_key.get(s["key"])
-                    series_amount = change["amount"] if change else s["amount"]
-                    amount = self.convert_to_home_currency(series_amount, s["currency"], home, day.isoformat())
+                    projected_amount = change["amount"] if change else series_amount
+                    amount = self.convert_to_home_currency(projected_amount, s["currency"], home, day.isoformat())
                     by_day[day.isoformat()] = by_day.get(day.isoformat(), 0.0) + (amount if s["key"][1].lower() in {"credit", "in"} else -amount)
                 month = dt.date(month.year + (month.month == 12), 1 if month.month == 12 else month.month + 1, 1)
 

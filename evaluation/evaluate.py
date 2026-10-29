@@ -30,6 +30,7 @@ VARIABLE_CATEGORY_SETS = [
 ]
 VARIABLE_FACTORS = [0.5 + 0.125 * i for i in range(9)]
 TRAILING_WINDOWS = [30, 60, 90]
+VARIABLE_INCOME_POLICIES = ["exclude", "project_minimum"]
 
 
 def values_match(expected, actual, column):
@@ -73,25 +74,39 @@ def calibrate(sample_path):
         for category_set in VARIABLE_CATEGORY_SETS:
             for factor in VARIABLE_FACTORS:
                 for window in TRAILING_WINDOWS:
-                    options = {
-                        "variable_category_set": category_set,
-                        "variable_factor": factor,
-                        "trailing_window_days": window,
-                    }
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        actual = run_pipeline(
-                            requests_path=sample_path, output_file=os.devnull,
-                            forecast_options={**options, "enable_spending_changes": False},
-                        )
-                    train_actual = actual[actual["request_id"].isin(train["request_id"])]
-                    candidates.append((score(train, train_actual), options))
+                    for income_policy in VARIABLE_INCOME_POLICIES:
+                        options = {
+                            "variable_category_set": category_set,
+                            "variable_factor": factor,
+                            "trailing_window_days": window,
+                            "variable_income_policy": income_policy,
+                        }
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            actual = run_pipeline(
+                                requests_path=sample_path, output_file=os.devnull,
+                                forecast_options={**options, "enable_spending_changes": False, "income_environment": "calibration"},
+                            )
+                        train_actual = actual[actual["request_id"].isin(train["request_id"])]
+                        candidates.append((score(train, train_actual), options))
     finally:
         fp.configure(environment="dev")
     candidates.sort(key=lambda item: item[0][0:2] + (-item[0][2],))
     best_score, best_options = candidates[0]
+    # Calibration is strictly cache-only.  Prefer the default conservative policy unless
+    # the alternative wins on held-out data by a material margin.
+    exclude_options = min(
+        (item for item in candidates if item[1]["variable_income_policy"] == "exclude"),
+        key=lambda item: item[0][0],
+    )[1]
+    exclude_held_actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
+                                       forecast_options={**exclude_options, "income_environment": "calibration"})
+    exclude_held_score = score(held_out, exclude_held_actual[exclude_held_actual["request_id"].isin(held_out["request_id"])])
     held_actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
-                               forecast_options=best_options)
+                               forecast_options={**best_options, "income_environment": "calibration"})
     held_score = score(held_out, held_actual[held_actual["request_id"].isin(held_out["request_id"])])
+    if best_options["variable_income_policy"] == "project_minimum" and held_score[0] >= exclude_held_score[0] - 0.001:
+        best_options = exclude_options
+        held_score = exclude_held_score
 
     # Print neighbouring parameter values, rather than only a point estimate, so
     # calibration brittleness is visible in the evaluation artifact.
