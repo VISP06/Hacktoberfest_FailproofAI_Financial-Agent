@@ -1,5 +1,6 @@
 import os
 import itertools
+import argparse
 import pandas as pd
 import datetime
 from dotenv import load_dotenv
@@ -286,5 +287,34 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
     print(f"Income classifier: model_calls={classifier.model_calls}, cache_hits={classifier.cache_hits}, failures={classifier.failures}")
     return output_df
 
+
+def fill_income_cache(requests_path):
+    """Explicitly populate income cache; evaluation never calls this path."""
+    requests_df = pd.read_csv(requests_path, dtype={"user_id": str})
+    classifier = IncomeClassifier(DATASET_DIR)
+    results = classifier.classify_requests(
+        requests_df, environment="dev", sleep_between_users=2, max_retries=3,
+    )
+    print(f"model_calls={classifier.model_calls}, cache_hits={classifier.cache_hits}, failures={classifier.failures}")
+    print("user | series | class | reason")
+    for (user_id, _request_date, series_key), row in sorted(results.items()):
+        print(f"{user_id} | {series_key} | {row.get('class', 'unknown')} | {row.get('reason', '')}")
+    if classifier.failure_details:
+        print("\nFailure report")
+        for failure in classifier.failure_details:
+            print(f"{failure['user_id']}: {failure['exception_class']}: {failure['message']}")
+    if classifier.circuit_breaker_error is not None:
+        error = classifier.circuit_breaker_error
+        print(f"\nCircuit breaker aborted the run: {type(error).__name__}: {str(error)[:300]}")
+    return results
+
 if __name__ == "__main__":
-    run_pipeline()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fill-income-cache", action="store_true")
+    parser.add_argument("--requests", default=os.path.join(DATASET_DIR, "requests.csv"))
+    parser.add_argument("--output", default=OUTPUT_FILE)
+    args = parser.parse_args()
+    if args.fill_income_cache:
+        fill_income_cache(args.requests)
+    else:
+        run_pipeline(requests_path=args.requests, output_file=args.output)

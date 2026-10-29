@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(ROOT_DIR, "code"))
 
 from main import run_pipeline
 from forecast import FORECAST_CONFIG
+from income_classifier import IncomeClassifier, CLASSES
 
 
 CHECK_COLUMNS = [
@@ -141,6 +142,14 @@ def main():
     sample_path = os.path.join(ROOT_DIR, "dataset", "sample_requests.csv")
     expected = pd.read_csv(sample_path)
 
+    # Evaluation is cache-only.  Never spend quota or silently score unknown income.
+    classifier = IncomeClassifier(os.path.join(ROOT_DIR, "dataset"))
+    classified = classifier.classify_requests(expected, environment="calibration")
+    unclassified = sum(1 for row in classified.values() if row.get("class") not in CLASSES - {"unknown"})
+    if unclassified:
+        print(f"{unclassified} income series unclassified: scores are not comparable")
+        return 2
+
     if args.mode == "calibrate":
         # Tune only on the first 17 rows and report on the held-out 8.
         options, _ = calibrate(sample_path)
@@ -149,9 +158,9 @@ def main():
 
     # The pipeline has its own operational banner; keep evaluation output focused
     # on the accuracy summary.
-    with contextlib.redirect_stdout(io.StringIO()):
-        actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
-                              forecast_options=options)
+        with contextlib.redirect_stdout(io.StringIO()):
+            actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
+                              forecast_options={**options, "income_environment": "calibration"})
     actual_by_id = actual.set_index("request_id")
 
     print("\nPer-column accuracy:")

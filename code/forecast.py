@@ -253,6 +253,8 @@ class Forecast:
                 income_class = (class_row or {}).get("class", "unknown")
                 if income_class == "unknown" or income_class in {"one_off", "ended"}:
                     continue
+                if str((class_row or {}).get("amount_valid", "false")).lower() != "true":
+                    continue
                 if income_class == "variable_unconfirmed":
                     if variable_income_policy == "exclude":
                         continue
