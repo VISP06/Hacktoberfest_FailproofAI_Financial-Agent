@@ -30,7 +30,24 @@ def test_prompt_injection_is_untrusted_and_has_no_effect(tmp_path, monkeypatch):
         "series_key": "salary:1", "class": "confirmed_recurring", "reason": "test",
         "evidence_ids": ["e1", "m1"],
     }]}]}, [snapshot])
-    assert result[0]["class"] == "confirmed_recurring"
+    assert result[0]["class"] == "unknown"
+
+
+def test_single_occurrence_new_recurring_requires_cited_payroll_schedule(tmp_path):
+    pd.DataFrame(columns=["event_id", "user_id", "event_type", "description", "category", "direction", "amount", "currency", "event_date", "settlement_date", "status", "linked_event_id", "flexibility", "minimum_allowed_amount"]).to_csv(tmp_path / "financial_events.csv", index=False)
+    classifier = IncomeClassifier(str(tmp_path), model_name="test-model")
+    snapshot = {
+        "request_date": "2026-01-03",
+        "series": {"salary:15": [{"event_id": "e1", "date": "2025-12-15", "amount": 100}]},
+        "messages": [{"message_id": "m1", "source_type": "payroll", "message_text": "Your salary is paid on the 15th every month."}],
+    }
+    response = {"snapshots": [{"request_date": "2026-01-03", "series": [{
+        "series_key": "salary:15", "class": "new_recurring", "reason": "schedule stated",
+        "evidence_ids": ["e1", "m1"],
+    }]}]}
+    assert classifier._validate(response, [snapshot])[0]["class"] == "new_recurring"
+    response["snapshots"][0]["series"][0]["evidence_ids"] = ["e1"]
+    assert classifier._validate(response, [snapshot])[0]["class"] == "unknown"
 
 
 def test_hallucinated_evidence_is_rejected(tmp_path):

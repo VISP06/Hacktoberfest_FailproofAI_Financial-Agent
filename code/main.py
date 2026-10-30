@@ -293,7 +293,7 @@ def fill_income_cache(requests_path):
     requests_df = pd.read_csv(requests_path, dtype={"user_id": str})
     classifier = IncomeClassifier(DATASET_DIR)
     results = classifier.classify_requests(
-        requests_df, environment="dev", sleep_between_users=2, max_retries=3,
+        requests_df, environment="dev", sleep_between_users=float(os.getenv("INCOME_FILL_DELAY", "8")), max_retries=4,
     )
     print(f"model_calls={classifier.model_calls}, cache_hits={classifier.cache_hits}, failures={classifier.failures}")
     print("user | series | class | reason")

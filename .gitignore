@@ -1,4 +1,5 @@
 .env
+fill_output.txt
 venv/
 __pycache__/
 *.pyc
