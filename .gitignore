@@ -1,4 +1,6 @@
 .env
+.cache/
+dataset/.cache/
 fill_output.txt
 venv/
 __pycache__/

@@ -4,3 +4,5 @@ pydantic>=2.6
 python-dotenv>=1.0
 pytest>=8.0
 failproofai-sdk
+fastembed>=0.7.0
+scikit-learn>=1.4

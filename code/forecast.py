@@ -35,6 +35,8 @@ class Forecast:
         )
         self.events.columns = self.events.columns.str.strip()
         self.events["user_id"] = self.events["user_id"].astype(str)
+        self._events_by_user = {str(user_id): frame.copy() for user_id, frame in self.events.groupby("user_id", sort=False)}
+        self._valid_events_cache = {}
         self.exchange_rates = pd.read_csv(os.path.join(dataset_dir, "exchange_rates.csv"), skipinitialspace=True)
         self.exchange_rates.columns = self.exchange_rates.columns.str.strip()
         self.exchange_rates["rate_date_parsed"] = pd.to_datetime(
@@ -99,7 +101,10 @@ class Forecast:
 
     def valid_events(self, user_id):
         """Return cash events, removing retries/lifecycle duplicates safely."""
-        events = self.events[self.events.user_id == str(user_id)].copy()
+        user_id = str(user_id)
+        if user_id in self._valid_events_cache:
+            return self._valid_events_cache[user_id].copy()
+        events = self._events_by_user.get(user_id, self.events.iloc[0:0]).copy()
         events = events.drop_duplicates().reset_index(drop=True)
         status = events.status.astype(str).str.lower()
         events = events[~status.isin({"failed", "cancelled", "unrealized"})].copy()
@@ -133,7 +138,9 @@ class Forecast:
                 if self._status_rank(row.status) == self._status_rank(other.status):
                     winner, loser = (row, other) if str(row.event_date) >= str(other.event_date) else (other, row)
                 remove.add(str(loser.event_id))
-        return events[~events.event_id.astype(str).isin(remove)].copy()
+        result = events[~events.event_id.astype(str).isin(remove)].copy()
+        self._valid_events_cache[user_id] = result
+        return result.copy()
 
     @staticmethod
     def _date(value):
@@ -187,6 +194,7 @@ class Forecast:
                 "category": str(latest.category), "event_type": str(latest.event_type),
                 "amount": amount, "minimum_amount": float(group.amount.dropna().min()) if not group.amount.dropna().empty else amount,
                 "currency": str(latest.currency), "day": latest_date.day,
+                "event_ids": [str(event_id) for event_id in group.event_id],
             })
         return series
 
@@ -211,7 +219,8 @@ class Forecast:
     def simulate(self, user_id, start_date_str, variable_category_set="all_non_recurring_fixed_flexibility_spending",
                  variable_factor=1.0, trailing_window_days=90, day_stability_tolerance=0,
                  min_recurring_months=3, include_request_date=False, amount_mode="latest", additional_payments=None,
-                 spending_changes=None, income_classes=None, variable_income_policy="exclude"):
+                  spending_changes=None, income_classes=None, variable_income_policy="exclude",
+                  return_breakdown=False):
         start = dt.date.fromisoformat(str(start_date_str)[:10])
         end = start + dt.timedelta(days=90)
         profile = self.profiles.loc[str(user_id)]
@@ -220,33 +229,39 @@ class Forecast:
         series = self.recurring_series(events, start, min_recurring_months, day_stability_tolerance, include_request_date, amount_mode)
         recurring_keys = {s["key"] for s in series}
         changes_by_key = {}
+        events_by_id = {str(row.event_id): row for row in events.itertuples(index=False)}
         for change in spending_changes or []:
-            event = events[events.event_id.astype(str).eq(str(change["event_id"]))]
-            if event.empty:
-                continue
-            row = event.iloc[0]
-            key = (str(row.user_id), str(row.direction), str(row.description))
-            changes_by_key[key] = change
+            row = events_by_id.get(str(change["event_id"]))
+            if row is not None:
+                changes_by_key[(str(row.user_id), str(row.direction), str(row.description))] = change
         by_day, replacement_months = {}, set()
+        flows_by_day = {}
 
-        future = events.copy()
-        future["forecast_date"] = future.apply(
-            lambda r: self._date(r.settlement_date) if str(r.status).lower() in {"pending", "scheduled"} and self._date(r.settlement_date) else self._date(r.event_date), axis=1
-        )
-        for _, row in future.iterrows():
-            day = row.forecast_date
+        variable_event_days = set()
+        for row in events.itertuples(index=False):
+            settlement_date = self._date(row.settlement_date)
+            day = settlement_date if str(row.status).lower() in {"pending", "scheduled"} and settlement_date else self._date(row.event_date)
             if day is None or not (start <= day <= end) or pd.isna(row.amount):
                 continue
-            if str(row.status).lower() == "pending" and not self._is_credit(row):
-                pass
             amount = self.convert_to_home_currency(row.amount, row.currency, home, day.isoformat())
             change = changes_by_key.get((str(row.user_id), str(row.direction), str(row.description)))
             if change and not self._is_credit(row):
                 amount = self.convert_to_home_currency(change["amount"], row.currency, home, day.isoformat())
-            by_day[day.isoformat()] = by_day.get(day.isoformat(), 0.0) + (amount if self._is_credit(row) else -amount)
+            credit = self._is_credit(row)
+            signed = amount if credit else -amount
+            day_key = day.isoformat()
+            by_day[day_key] = by_day.get(day_key, 0.0) + signed
+            if self._is_variable(row, recurring_keys):
+                variable_event_days.add(day_key)
+            source = "income" if credit else "scheduled_event"
+            flows_by_day.setdefault(day_key, []).append({
+                "source": source, "event_id": str(row.event_id), "amount": signed,
+                "category": str(row.category), "description": str(row.description), "date": day_key,
+            })
             if str(row.status).lower() == "scheduled":
                 replacement_months.add((day.year, day.month, str(row.direction).lower(), str(row.category)))
 
+        income_decisions = []
         for s in series:
             if s["key"][1].lower() in {"credit", "in"}:
                 classification_key = (str(user_id), start.isoformat(), str(s["key"][2]))
@@ -267,16 +282,24 @@ class Forecast:
                     income_class = "confirmed_recurring"
                 else:
                     income_class = class_row.get("class", "unknown")
+                reason = "fallback recurring-series rule" if fallback else str(class_row.get("reason", income_class))
+                decision = "counted"
                 if income_class == "unknown" or income_class in {"one_off", "ended"}:
+                    decision = "excluded"
+                    income_decisions.append({"series_key": str(s["key"][2]), "decision": decision, "reason": reason})
                     continue
                 if not fallback and str(class_row.get("amount_valid", "false")).lower() != "true":
+                    income_decisions.append({"series_key": str(s["key"][2]), "decision": "excluded", "reason": "amount not validated"})
                     continue
                 if income_class == "variable_unconfirmed":
                     if variable_income_policy == "exclude":
+                        income_decisions.append({"series_key": str(s["key"][2]), "decision": "excluded", "reason": "variable income policy is exclude"})
                         continue
                     series_amount = s["minimum_amount"]
+                    reason = "projected at minimum recurring amount"
                 else:
                     series_amount = s["amount"]
+                income_decisions.append({"series_key": str(s["key"][2]), "decision": "counted", "reason": reason})
             else:
                 series_amount = s["amount"]
             month = dt.date(start.year, start.month, 1)
@@ -286,35 +309,77 @@ class Forecast:
                     change = changes_by_key.get(s["key"])
                     projected_amount = change["amount"] if change else series_amount
                     amount = self.convert_to_home_currency(projected_amount, s["currency"], home, day.isoformat())
-                    by_day[day.isoformat()] = by_day.get(day.isoformat(), 0.0) + (amount if s["key"][1].lower() in {"credit", "in"} else -amount)
+                    signed = amount if s["key"][1].lower() in {"credit", "in"} else -amount
+                    day_key = day.isoformat()
+                    by_day[day_key] = by_day.get(day_key, 0.0) + signed
+                    flows_by_day.setdefault(day_key, []).append({
+                        "source": "recurring_series" if signed < 0 else "income",
+                        "event_id": s["event_ids"][-1] if s["event_ids"] else None,
+                        "event_ids": s["event_ids"], "series_key": str(s["key"][2]), "amount": signed, "date": day_key,
+                        "category": s["category"],
+                    })
                 month = dt.date(month.year + (month.month == 12), 1 if month.month == 12 else month.month + 1, 1)
 
         categories = None
         if variable_category_set in {"protected_categories_only", "protected"}:
             categories = {x.strip().lower() for x in str(profile.expense_categories_to_protect).split("|") if x.strip()}
         historical_start = start - dt.timedelta(days=int(trailing_window_days))
-        historical = events.copy()
-        historical["parsed_date"] = historical.event_date.map(self._date)
-        historical = historical[historical.parsed_date.notna() & (historical.status.astype(str).str.lower() == "settled") &
-                                (historical.parsed_date >= historical_start) & (historical.parsed_date < start)]
         variable_total = 0.0
-        for _, row in historical.iterrows():
-            if self._is_variable(row, recurring_keys) and (categories is None or str(row.category).lower() in categories) and not pd.isna(row.amount):
+        variable_event_ids = []
+        for row in events.itertuples(index=False):
+            parsed_date = self._date(row.event_date)
+            if (parsed_date is not None and str(row.status).lower() == "settled"
+                    and historical_start <= parsed_date < start and self._is_variable(row, recurring_keys)
+                    and (categories is None or str(row.category).lower() in categories) and not pd.isna(row.amount)):
                 change = changes_by_key.get((str(row.user_id), str(row.direction), str(row.description)))
                 historical_amount = change["amount"] if change else row.amount
                 variable_total += self.convert_to_home_currency(
-                    historical_amount, row.currency, home, row.parsed_date.isoformat()
+                    historical_amount, row.currency, home, parsed_date.isoformat()
                 )
+                variable_event_ids.append(str(row.event_id))
         daily_variable = variable_total / float(trailing_window_days) * float(variable_factor)
         balances, running = {}, float(profile.current_available_balance)
         for offset in range(91):
             day = start + dt.timedelta(days=offset)
             key = day.isoformat()
             flow = by_day.get(key, 0.0)
-            if daily_variable and not any(key == str(r.forecast_date) and self._is_variable(r, recurring_keys) for _, r in future.iterrows()):
+            if daily_variable and key not in variable_event_days:
                 flow -= daily_variable
+                flows_by_day.setdefault(key, []).append({
+                    "source": "variable_spending", "event_id": None,
+                    "event_ids": variable_event_ids, "amount": -daily_variable,
+                })
             if additional_payments and key in additional_payments:
                 flow -= float(additional_payments[key])
+                flows_by_day.setdefault(key, []).append({
+                    "source": "scheduled_event", "event_id": None,
+                    "amount": -float(additional_payments[key]),
+                })
             running += flow
             balances[key] = running
-        return balances, float(profile.minimum_balance_to_keep)
+        result = (balances, float(profile.minimum_balance_to_keep))
+        if return_breakdown:
+            outflow_totals = {}
+            outflow_event_ids = {}
+            for day_flows in flows_by_day.values():
+                for item in day_flows:
+                    amount = float(item["amount"])
+                    if amount >= 0:
+                        continue
+                    label = item.get("description") or item.get("series_key") or item.get("category") or item["source"]
+                    outflow_totals[label] = outflow_totals.get(label, 0.0) - amount
+                    outflow_event_ids.setdefault(label, set()).update(item.get("event_ids", []))
+                    if item.get("event_id"):
+                        outflow_event_ids[label].add(item["event_id"])
+            outflow_drivers = [
+                {"label": label, "amount": amount, "event_ids": sorted(outflow_event_ids[label])}
+                for label, amount in sorted(outflow_totals.items(), key=lambda pair: (-pair[1], pair[0]))[:3]
+            ]
+            return (*result, {"flows_by_day": flows_by_day, "initial_balance": float(profile.current_available_balance),
+                              "minimum_balance_to_keep": float(profile.minimum_balance_to_keep),
+                              "income_decisions": income_decisions,
+                              "largest_outflow_drivers": outflow_drivers,
+                              "pending_ignored": [str(row.event_id) for row in
+                                                  self._events_by_user.get(str(user_id), self.events.iloc[0:0]).itertuples(index=False)
+                                                  if str(row.status).lower() == "pending" and self._is_credit(row)]})
+        return result

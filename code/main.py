@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from financial_engine import FinancialEngine
 from forecast import FORECAST_CONFIG
 from income_classifier import IncomeClassifier
+from explain import build_explanation
+from retrieval import generic_request_query, retrieve_messages
 import failproofai_sdk as fp
 
 load_dotenv()
@@ -110,14 +112,20 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
 
                 user_profile = engine.profiles.loc[user_id]
                 considered_methods = str(user_profile.get("payment_methods_user_will_consider", "")).lower()
+                retrieved_messages = retrieve_messages(
+                    user_id, req_date,
+                    generic_request_query({"request_type": row.get("request_type", ""),
+                                          "request_text": row.get("request_text", "")}),
+                    k=5,
+                )
 
                 # 1. Get Base 90-Day Simulation
                 with fp.tool_call(
                     "simulate_90_days",
                     input={"user_id": user_id, "start_date": req_date},
                 ) as tool:
-                    balances, min_bal = engine.simulate_90_days(
-                        user_id, req_date, **simulation_options
+                    balances, min_bal, breakdown = engine.simulate_90_days(
+                        user_id, req_date, return_breakdown=True, **simulation_options
                     )
                     tool.output = {"min_balance": min_bal}
 
@@ -259,6 +267,11 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                         best_plan = candidates[0]
                         tool.output = {"chosen_method": best_plan["method"]}
 
+                    explanation, evidence = build_explanation(
+                        balances=balances, breakdown=breakdown, minimum_balance=min_bal,
+                        chosen_option=best_plan, desired_date=desired_date,
+                        retrieved_messages=retrieved_messages,
+                    )
                     results.append({
                         "request_id": req_id,
                         "amount_safe_to_pay": round(amount_safe_today, 2),
@@ -267,9 +280,16 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                         "payment_plan": format_payment_plan(best_plan["plan_dict"]),
                         "earliest_date_for_full_payment": earliest_full_date,
                         "spending_changes_needed": best_plan["spending_changes"],
-                        "decision_explanation": f"Recommended {best_plan['method']} with total cost {best_plan['cost']}."
+                        "decision_explanation": explanation,
+                        "explanation_evidence": evidence,
                     })
                 else:
+                    explanation, evidence = build_explanation(
+                        balances=balances, breakdown=breakdown, minimum_balance=min_bal,
+                        chosen_option={"method": "not_recommended", "completion_date": "none",
+                                       "cost": 0.0, "spending_changes": "none"},
+                        desired_date=desired_date, retrieved_messages=retrieved_messages,
+                    )
                     results.append({
                         "request_id": req_id,
                         "amount_safe_to_pay": round(amount_safe_today, 2),
@@ -278,7 +298,8 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                         "payment_plan": "none",
                         "earliest_date_for_full_payment": earliest_full_date,
                         "spending_changes_needed": "none",
-                        "decision_explanation": "No safe eligible payment method found without dropping below minimum balance."
+                        "decision_explanation": explanation,
+                        "explanation_evidence": evidence,
                     })
 
     output_df = pd.DataFrame(results)
