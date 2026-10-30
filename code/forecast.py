@@ -249,11 +249,27 @@ class Forecast:
 
         for s in series:
             if s["key"][1].lower() in {"credit", "in"}:
-                class_row = (income_classes or {}).get((str(user_id), start.isoformat(), str(s["key"][2])))
-                income_class = (class_row or {}).get("class", "unknown")
+                classification_key = (str(user_id), start.isoformat(), str(s["key"][2]))
+                class_row = (income_classes or {}).get(classification_key)
+                fallback = (
+                    class_row is None
+                    or (class_row.get("class") == "unknown"
+                        and class_row.get("reason") == "No validated classification available")
+                )
+                if fallback:
+                    s["source"] = "fallback_rule"
+                    self._error(
+                        "IncomeClassFallback",
+                        "No validated LLM income classification; using the recurring-series rule",
+                        user_id=str(user_id), series_key=str(s["key"][2]),
+                        request_date=start.isoformat(), source="fallback_rule",
+                    )
+                    income_class = "confirmed_recurring"
+                else:
+                    income_class = class_row.get("class", "unknown")
                 if income_class == "unknown" or income_class in {"one_off", "ended"}:
                     continue
-                if str((class_row or {}).get("amount_valid", "false")).lower() != "true":
+                if not fallback and str(class_row.get("amount_valid", "false")).lower() != "true":
                     continue
                 if income_class == "variable_unconfirmed":
                     if variable_income_policy == "exclude":

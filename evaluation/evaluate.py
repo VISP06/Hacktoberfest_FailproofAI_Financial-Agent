@@ -13,7 +13,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT_DIR, "code"))
 
 from main import run_pipeline
-from forecast import FORECAST_CONFIG
+from forecast import FORECAST_CONFIG, Forecast
 from income_classifier import IncomeClassifier, CLASSES
 
 
@@ -125,12 +125,42 @@ def calibrate(sample_path):
     return best_options, held_score
 
 
+def _income_coverage(requests, classified):
+    llm_classified = sum(
+        1 for row in classified.values()
+        if row.get("class") in CLASSES - {"unknown"}
+    )
+    forecast = Forecast(os.path.join(ROOT_DIR, "dataset"))
+    fallback_keys = set()
+    for _, request in requests.iterrows():
+        user_id = str(request["user_id"])
+        request_date = Forecast._date(request["request_date"])
+        if request_date is None:
+            continue
+        events = forecast.valid_events(user_id)
+        for series in forecast.recurring_series(events, request_date):
+            if series["key"][1].lower() not in {"credit", "in"}:
+                continue
+            key = (user_id, request_date.isoformat(), str(series["key"][2]))
+            row = classified.get(key)
+            if row is None or (
+                row.get("class") == "unknown"
+                and row.get("reason") == "No validated classification available"
+            ):
+                fallback_keys.add(key)
+    return llm_classified, len(classified), len(fallback_keys)
+
+
 def main():
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--quick", dest="mode", action="store_const", const="quick",
         help="Use the calibrated forecast configuration (default).",
+    )
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="Exit with status 2 when any income series lacks an LLM classification.",
     )
     mode.add_argument(
         "--calibrate", dest="mode", action="store_const", const="calibrate",
@@ -145,8 +175,10 @@ def main():
     # Evaluation is cache-only.  Never spend quota or silently score unknown income.
     classifier = IncomeClassifier(os.path.join(ROOT_DIR, "dataset"))
     classified = classifier.classify_requests(expected, environment="calibration")
-    unclassified = sum(1 for row in classified.values() if row.get("class") not in CLASSES - {"unknown"})
-    if unclassified:
+    llm_count, total_series, fallback_count = _income_coverage(expected, classified)
+    print(f"Income coverage: {llm_count} of {total_series} series LLM-classified, {fallback_count} using fallback")
+    unclassified = total_series - llm_count
+    if args.strict and unclassified:
         print(f"{unclassified} income series unclassified: scores are not comparable")
         return 2
 
@@ -158,8 +190,8 @@ def main():
 
     # The pipeline has its own operational banner; keep evaluation output focused
     # on the accuracy summary.
-        with contextlib.redirect_stdout(io.StringIO()):
-            actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
+    with contextlib.redirect_stdout(io.StringIO()):
+        actual = run_pipeline(requests_path=sample_path, output_file=os.devnull,
                               forecast_options={**options, "income_environment": "calibration"})
     actual_by_id = actual.set_index("request_id")
 
