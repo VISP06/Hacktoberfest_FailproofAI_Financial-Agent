@@ -23,10 +23,12 @@ def main():
         found = retrieve_messages(row["user_id"], row["request_date"], query, k=5)
         returned = [str(message["message_id"]) for message in found]
         target = relevant.get(request_id, set())
-        results[request_id] = (returned, target)
-        if not target.intersection(returned):
-            misses.append(request_id)
+        if target:
+            results[request_id] = (returned, target)
+            if not target.intersection(returned):
+                misses.append(request_id)
 
+    print(f"Requests with at least one linked message: {len(results)}")
     for k in (1, 3, 5):
         hits = sum(bool(target.intersection(ids[:k])) for ids, target in results.values())
         hit_rate = hits / len(results) if results else 0.0

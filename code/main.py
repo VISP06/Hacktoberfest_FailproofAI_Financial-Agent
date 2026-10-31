@@ -334,8 +334,13 @@ if __name__ == "__main__":
     parser.add_argument("--fill-income-cache", action="store_true")
     parser.add_argument("--requests", default=os.path.join(DATASET_DIR, "requests.csv"))
     parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument("--polish-explanations", action="store_true")
     args = parser.parse_args()
     if args.fill_income_cache:
         fill_income_cache(args.requests)
     else:
-        run_pipeline(requests_path=args.requests, output_file=args.output)
+        result = run_pipeline(requests_path=args.requests, output_file=args.output)
+        if args.polish_explanations:
+            from explain_llm import polish_explanations
+            polished = polish_explanations(result.to_dict("records"))
+            pd.DataFrame(polished).to_csv(args.output, index=False)

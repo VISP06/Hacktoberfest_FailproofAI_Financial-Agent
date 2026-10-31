@@ -5,6 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "code"))
 from explain import build_explanation
+from explain_llm import polish_explanations
 
 
 class ExplanationEvidenceTest(unittest.TestCase):
@@ -35,6 +36,34 @@ class ExplanationEvidenceTest(unittest.TestCase):
         evidence_text = repr(evidence)
         for number in re.findall(r"\d+(?:\.\d+)?", explanation):
             self.assertIn(number, evidence_text)
+
+    def test_income_occurrences_are_aggregated_and_unrecommended_is_explained(self):
+        breakdown = {"initial_balance": 10, "flows_by_day": {
+            "2026-01-01": [{"source": "income", "series_key": "salary:15", "event_id": "e1", "amount": 14740, "date": "2026-01-01"}],
+            "2026-01-02": [{"source": "income", "series_key": "salary:15", "event_id": "e2", "amount": 15, "date": "2026-01-02"}],
+        }, "pending_ignored": []}
+        text, evidence = build_explanation(balances={"2026-01-01": 5}, breakdown=breakdown,
+            minimum_balance=10, chosen_option={"method": "not_recommended", "completion_date": "none", "cost": 0,
+            "spending_changes": "none"}, desired_date="2026-01-03")
+        self.assertIn("salary:15:14755 per month, 2 payments in the window", text)
+        self.assertIn("falls below the minimum", text)
+        self.assertNotIn("none", text.lower())
+
+    def test_polish_accepts_valid_and_rejects_invented_number(self):
+        evidence = {"amount": 42, "event_ids": ["event-1"]}
+        deterministic = "Original explanation. Keep this safe."
+        class Client:
+            def __init__(self, text): self.text = text
+            def __call__(self, **kwargs):
+                from types import SimpleNamespace
+                return SimpleNamespace(usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content='{"explanations":[' + __import__("json").dumps(self.text) + ']}'))])
+        def row(): return {"decision_explanation": deterministic, "explanation_evidence": evidence}
+        valid = row()
+        polish_explanations([valid], client=Client("The amount is 42. Event event-1 supports this plan."), cache_path="/tmp/opencode/explain-test-cache.json")
+        self.assertNotEqual(valid["decision_explanation"], deterministic)
+        invalid = row()
+        polish_explanations([invalid], client=Client("The amount is 43. Event event-1 supports this plan."), cache_path="/tmp/opencode/explain-test-cache-invalid.json")
+        self.assertEqual(invalid["decision_explanation"], deterministic)
 
 
 if __name__ == "__main__":
