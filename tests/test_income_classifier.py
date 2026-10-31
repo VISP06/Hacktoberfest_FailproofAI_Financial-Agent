@@ -36,20 +36,25 @@ def test_prompt_injection_is_untrusted_and_has_no_effect(tmp_path, monkeypatch):
     assert result[0]["class"] == "unknown"
 
 
-def test_single_occurrence_new_recurring_requires_cited_payroll_schedule(tmp_path):
+def test_single_occurrence_classification_requires_citation_and_never_confirms(tmp_path):
     pd.DataFrame(columns=["event_id", "user_id", "event_type", "description", "category", "direction", "amount", "currency", "event_date", "settlement_date", "status", "linked_event_id", "flexibility", "minimum_allowed_amount"]).to_csv(tmp_path / "financial_events.csv", index=False)
     classifier = IncomeClassifier(str(tmp_path), model_name="test-model")
     snapshot = {
         "request_date": "2026-01-03",
-        "series": {"salary:15": [{"event_id": "e1", "date": "2025-12-15", "amount": 100}]},
-        "messages": [{"message_id": "m1", "source_type": "payroll", "message_text": "This is your first salary payment; your salary continues every month."}],
+        "series": {"salary:15": [{"event_id": "e1", "date": "2025-12-15", "amount": 100,
+                                   "description": "Prorated first salary"}]},
+        "messages": [],
     }
     response = [{
         "user_id": "u1", "request_date": "2026-01-03", "series_key": "salary:15",
         "class": "new_recurring", "reason": "first scheduled payment",
         "evidence_ids": ["e1", "m1"],
     }]
+    response[0]["evidence_ids"] = ["e1"]
     assert classifier._validate_user(response, "u1", [snapshot])[0]["class"] == "new_recurring"
+    response[0]["evidence_ids"] = []
+    assert classifier._validate_user(response, "u1", [snapshot])[0]["class"] == "unknown"
+    response[0]["class"] = "confirmed_recurring"
     response[0]["evidence_ids"] = ["e1"]
     assert classifier._validate_user(response, "u1", [snapshot])[0]["class"] == "unknown"
 
