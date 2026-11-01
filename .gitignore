@@ -1,6 +1,7 @@
 .env
 .cache/
 dataset/.cache/
+logs/
 fill_output.txt
 venv/
 __pycache__/

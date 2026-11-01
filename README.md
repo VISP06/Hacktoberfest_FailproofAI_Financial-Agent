@@ -31,6 +31,7 @@ Run the deterministic, cache-only accuracy evaluation or the local retrieval eva
 python evaluation/evaluate.py
 python evaluation/eval_retrieval.py
 python evaluation/compare_income_caches.py cache-a.csv cache-b.csv
+python evaluation/make_usage_report.py
 ```
 
 Explicitly populate the income-classification cache (this command can make model/API calls):
@@ -46,6 +47,12 @@ python code/main.py --fill-income-cache
 - `INCOME_CACHE_PATH`: income-classification cache CSV path (default `dataset/income_classes.csv`).
 - `INCOME_FILL_DELAY`: delay in seconds between user batches when filling the income cache (default `8`).
 - `INCOME_BATCH_SIZE`: number of users per income-classification batch (default `5`).
+- `FAILPROOF_ENV`: FailproofAI environment for traces (default `dev`; evaluation uses `eval`).
+- `RUN_ID`: optional run identifier used to make session IDs unique across runs.
+
+Every model attempt appends a local usage record to `logs/usage.jsonl`. Generate the
+per-purpose and per-model token summary at `evaluation/usage_report.md` with
+`python evaluation/make_usage_report.py`.
 
 ## Failproof tracing
 

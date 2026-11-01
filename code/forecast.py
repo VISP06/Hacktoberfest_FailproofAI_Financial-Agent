@@ -10,6 +10,7 @@ import os
 
 import failproofai_sdk as fp
 import pandas as pd
+from observability import make_session_id, new_run_id
 
 
 FORECAST_CONFIG = {
@@ -47,7 +48,7 @@ class Forecast:
     def _error(error_type, message, **fields):
         current = fp.current()
         fp.event.error(
-            session_id=(current.session_id if current else None) or "financial-engine",
+            session_id=(current.session_id if current else None) or make_session_id("financial-engine", new_run_id()),
             agent_id="decision-engine", error_type=error_type, message=message, **fields,
         )
 

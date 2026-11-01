@@ -6,6 +6,7 @@ import pandas as pd
 from litellm import completion
 from dotenv import load_dotenv
 import failproofai_sdk as fp
+from observability import logged_completion, make_session_id, new_run_id
 
 load_dotenv()
 
@@ -36,7 +37,8 @@ def rule_based_fallback(message_text):
             
     return {"action": "none", "details": "no action"}
 
-def analyze_message_batch(batch_df, max_retries=3):
+def analyze_message_batch(batch_df, max_retries=3, run_id=None):
+    run_id = run_id or new_run_id()
     model_name = os.getenv("BUY_OR_WAIT_MODEL", "gemini/gemini-1.5-flash")
     
     messages_text = ""
@@ -57,20 +59,21 @@ def analyze_message_batch(batch_df, max_retries=3):
     for attempt in range(max_retries):
         try:
             request_id = f"text-{batch_df.iloc[0]['message_id']}-{attempt}"
+            session_id = make_session_id(request_id, run_id)
             fp.event.model_request(
-                session_id=request_id,
+                session_id=session_id,
                 agent_id="text-parser",
                 model=model_name,
                 request_id=request_id,
             )
-            response = completion(
-                model=model_name,
+            response = logged_completion(
+                completion, purpose="text_parser", model=model_name,
                 messages=messages,
                 response_format={"type": "json_object"}
             )
             usage = getattr(response, "usage", None)
             fp.event.model_response(
-                session_id=request_id,
+                session_id=session_id,
                 agent_id="text-parser",
                 model=model_name,
                 request_id=request_id,
@@ -84,7 +87,7 @@ def analyze_message_batch(batch_df, max_retries=3):
                 return parsed_json
             else:
                 fp.event.error(
-                    session_id=request_id,
+                    session_id=session_id,
                     agent_id="text-parser",
                     error_type="JSONParseError",
                     message="Unable to parse model JSON response",
@@ -100,6 +103,7 @@ def analyze_message_batch(batch_df, max_retries=3):
     return None
 
 def parse_messages(dataset_dir="dataset"):
+    run_id = new_run_id()
     print("=== Running Text Perception Layer (Deterministic + VLM Hybrid) ===")
     
     messages_path = os.path.join(dataset_dir, "messages.csv")
@@ -142,7 +146,7 @@ def parse_messages(dataset_dir="dataset"):
         batch = unparsed_df.iloc[i:i+batch_size]
         print(f"-> Processing batch {i//batch_size + 1} ({len(batch)} messages)...")
         
-        batch_results = analyze_message_batch(batch)
+        batch_results = analyze_message_batch(batch, run_id=run_id)
         
         for _, row in batch.iterrows():
             msg_id = str(row['message_id'])
@@ -154,7 +158,7 @@ def parse_messages(dataset_dir="dataset"):
             else:
                 analysis = rule_based_fallback(msg_text)
                 fp.event.error(
-                    session_id=f"text-{msg_id}",
+                    session_id=make_session_id(f"text-{msg_id}", run_id),
                     agent_id="text-parser",
                     error_type="RuleBasedFallback",
                     message="rule_based_fallback used",

@@ -5,6 +5,8 @@ import contextlib
 import io
 import argparse
 
+os.environ["FAILPROOF_ENV"] = "eval"
+
 import pandas as pd
 import failproofai_sdk as fp
 
@@ -70,7 +72,8 @@ def calibrate(sample_path):
     train = expected.iloc[:17].copy()
     held_out = expected.iloc[17:].copy()
     candidates = []
-    fp.configure(environment="calibration")
+    os.environ["FAILPROOF_ENV"] = "eval"
+    fp.configure(environment="eval")
     try:
         for category_set in VARIABLE_CATEGORY_SETS:
             for factor in VARIABLE_FACTORS:
@@ -90,7 +93,8 @@ def calibrate(sample_path):
                         train_actual = actual[actual["request_id"].isin(train["request_id"])]
                         candidates.append((score(train, train_actual), options))
     finally:
-        fp.configure(environment="dev")
+        os.environ["FAILPROOF_ENV"] = "eval"
+        fp.configure(environment="eval")
     candidates.sort(key=lambda item: item[0][0:2] + (-item[0][2],))
     best_score, best_options = candidates[0]
     # Calibration is strictly cache-only.  Prefer the default conservative policy unless

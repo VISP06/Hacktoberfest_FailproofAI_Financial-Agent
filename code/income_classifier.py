@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import litellm
 from litellm import completion
 import failproofai_sdk as fp
+from observability import logged_completion, make_session_id, new_run_id
 
 load_dotenv()
 litellm.suppress_debug_info = True
@@ -197,7 +198,8 @@ class IncomeClassifier:
         return validated
 
     def classify_requests(self, requests_df, environment="dev", print_summary=False,
-                          sleep_between_users=None, max_retries=4):
+                          sleep_between_users=None, max_retries=4, run_id=None):
+        run_id = run_id or new_run_id()
         if sleep_between_users is None:
             sleep_between_users = float(os.getenv("INCOME_FILL_DELAY", "8"))
         batch_size = max(1, int(os.getenv("INCOME_BATCH_SIZE", "5")))
@@ -237,8 +239,8 @@ class IncomeClassifier:
         if environment == "dev":
           for batch_user_ids in batches:
             batch_users = {user_id: pending_by_user[user_id] for user_id in batch_user_ids}
-            session_id = "income-batch-" + "-".join(batch_user_ids)
-            request_id = session_id
+            request_id = "income-batch-" + "-".join(batch_user_ids)
+            session_id = make_session_id(request_id, run_id)
             response = None
             last_exc = None
             consecutive_429 = 0
@@ -248,7 +250,11 @@ class IncomeClassifier:
                         fp.event.model_request(session_id=session_id, agent_id="income-classifier", model=self.model_name, request_id=request_id)
                         self.model_calls += 1
                         call_snapshots = [snap for user_snaps in batch_users.values() for snap in user_snaps]
-                        response = completion(model=self.model_name, messages=[{"role": "user", "content": self._prompt(call_snapshots)}], temperature=0, response_format={"type": "json_object"})
+                        response = logged_completion(
+                            completion, purpose="income_classifier", model=self.model_name,
+                            messages=[{"role": "user", "content": self._prompt(call_snapshots)}],
+                            temperature=0, response_format={"type": "json_object"},
+                        )
                         break
                     except Exception as exc:
                         last_exc = exc
@@ -315,7 +321,7 @@ class IncomeClassifier:
                     except Exception as exc:
                         self.failures += 1
                         self.failure_details.append({"user_id": user_id, "exception_class": type(exc).__name__, "message": str(exc)[:300]})
-                        self._error(f"income-{user_id}", "IncomeClassificationFailure", str(exc), user_id=user_id)
+                        self._error(make_session_id(f"income-error-{user_id}", run_id), "IncomeClassificationFailure", str(exc), user_id=user_id)
                 # The call succeeded, even if an individual user's response failed validation.
             except Exception as exc:
                 for user_id in batch_user_ids:
@@ -323,7 +329,7 @@ class IncomeClassifier:
                         break
                     self.failures += 1
                     self.failure_details.append({"user_id": user_id, "exception_class": type(exc).__name__, "message": str(exc)[:300]})
-                    self._error(f"income-{user_id}", "IncomeClassificationFailure", str(exc), user_id=user_id)
+                    self._error(make_session_id(f"income-error-{user_id}", run_id), "IncomeClassificationFailure", str(exc), user_id=user_id)
                 if systemic_failures and len(systemic_failures) >= 2 and systemic_failures[-1][0] == systemic_failures[-2][0]:
                     self.circuit_breaker_error = exc
             if sleep_between_users and self.circuit_breaker_error is None:

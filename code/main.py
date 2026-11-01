@@ -10,9 +10,10 @@ from income_classifier import IncomeClassifier
 from explain import build_explanation
 from retrieval import generic_request_query, retrieve_messages
 import failproofai_sdk as fp
+from observability import new_run_id, make_session_id
 
 load_dotenv()
-fp.configure(environment="dev")
+fp.configure(environment=os.getenv("FAILPROOF_ENV", "dev"))
 
 DATASET_DIR = "dataset"
 OUTPUT_FILE = "output.csv"
@@ -81,6 +82,7 @@ def _find_spending_changes(engine, user_id, request_date, requested_amount, fore
 
 def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=None):
     print("=== Running Buy or Wait? Final Decision Engine ===")
+    run_id = new_run_id()
 
     requests_path = requests_path or os.path.join(DATASET_DIR, "requests.csv")
     requests_df = pd.read_csv(requests_path)
@@ -91,6 +93,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
     income_classes = classifier.classify_requests(
         requests_df, environment=income_environment,
         print_summary=os.path.basename(requests_path) == "sample_requests.csv" and income_environment == "dev",
+        run_id=run_id,
     )
     forecast_options["income_classes"] = income_classes
     simulation_options = {
@@ -102,7 +105,7 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
 
     for _, row in requests_df.iterrows():
         req_id = str(row["request_id"])
-        with fp.session(f"req-{req_id}"):
+        with fp.session(make_session_id(req_id, run_id)):
             with fp.agent("decision-engine", goal=str(row["request_text"])):
                 user_id = str(row["user_id"])
                 req_date = str(row["request_date"])

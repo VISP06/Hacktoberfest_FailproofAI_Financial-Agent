@@ -8,6 +8,7 @@ import time
 import failproofai_sdk as fp
 from litellm import completion
 from income_classifier import IncomeClassifier
+from observability import logged_completion, make_session_id, new_run_id
 
 PROMPT_VERSION = "explain-polish-v1"
 
@@ -68,6 +69,7 @@ def polish_explanations(rows, model_name=None, cache_path=None, client=None):
     except (OSError, ValueError):
         cache = {}
     completion_fn = client or completion
+    run_id = new_run_id()
     daily_quota_exhausted = False
     for batch_start in range(0, len(rows), 5):
         if daily_quota_exhausted:
@@ -84,17 +86,18 @@ def polish_explanations(rows, model_name=None, cache_path=None, client=None):
                 pending.append(row)
         for start in range(0, len(pending), 5):
             group = pending[start:start + 5]
-            session_id = f"explain-batch-{batch_start // 5 + 1}"
+            request_id = f"explain-batch-{batch_start // 5 + 1}"
+            session_id = make_session_id(request_id, run_id)
             last_exc = None
             for attempt in range(4):
                 try:
-                    fp.event.model_request(session_id=session_id, agent_id="explanation-polisher", model=model_name, request_id=session_id)
-                    response = completion_fn(model=model_name, messages=[{"role": "user", "content":
+                    fp.event.model_request(session_id=session_id, agent_id="explanation-polisher", model=model_name, request_id=request_id)
+                    response = logged_completion(completion_fn, purpose="explain_polish", model=model_name, messages=[{"role": "user", "content":
                         "Write 2-3 plain-language sentences per item, grounding every fact in its evidence. Return JSON only as {\"explanations\":[\"...\"]}. Input contains evidence only; do not add facts.\n" +
                         json.dumps([row["explanation_evidence"] for row in group], sort_keys=True, default=str)}],
                         temperature=0, response_format={"type": "json_object"})
                     usage = getattr(response, "usage", None)
-                    fp.event.model_response(session_id=session_id, agent_id="explanation-polisher", model=model_name, request_id=session_id,
+                    fp.event.model_response(session_id=session_id, agent_id="explanation-polisher", model=model_name, request_id=request_id,
                         input_tokens=getattr(usage, "prompt_tokens", None), output_tokens=getattr(usage, "completion_tokens", None))
                     results = json.loads(response.choices[0].message.content).get("explanations", [])
                     if len(results) != len(group):

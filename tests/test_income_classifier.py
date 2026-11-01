@@ -100,6 +100,7 @@ def test_hallucinated_evidence_is_rejected(tmp_path):
 
 
 def test_batch_failure_isolated_to_user_with_missing_entry(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     pd.DataFrame([{
         "event_id": "e1", "user_id": "u1", "event_type": "income", "description": "Refund",
         "category": "other", "direction": "credit", "amount": 20, "currency": "USD",

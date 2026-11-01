@@ -2,6 +2,7 @@ import re
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "code"))
 from explain import build_explanation
@@ -59,10 +60,12 @@ class ExplanationEvidenceTest(unittest.TestCase):
                 return SimpleNamespace(usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content='{"explanations":[' + __import__("json").dumps(self.text) + ']}'))])
         def row(): return {"decision_explanation": deterministic, "explanation_evidence": evidence}
         valid = row()
-        polish_explanations([valid], client=Client("The amount is 42. Event event-1 supports this plan."), cache_path="/tmp/opencode/explain-test-cache.json")
+        with patch("observability.log_model_usage"):
+            polish_explanations([valid], client=Client("The amount is 42. Event event-1 supports this plan."), cache_path="/tmp/opencode/explain-test-cache.json")
         self.assertNotEqual(valid["decision_explanation"], deterministic)
         invalid = row()
-        polish_explanations([invalid], client=Client("The amount is 43. Event event-1 supports this plan."), cache_path="/tmp/opencode/explain-test-cache-invalid.json")
+        with patch("observability.log_model_usage"):
+            polish_explanations([invalid], client=Client("The amount is 43. Event event-1 supports this plan."), cache_path="/tmp/opencode/explain-test-cache-invalid.json")
         self.assertEqual(invalid["decision_explanation"], deterministic)
 
 
