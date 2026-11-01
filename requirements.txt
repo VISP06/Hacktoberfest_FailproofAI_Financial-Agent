@@ -6,3 +6,4 @@ pytest>=8.0
 failproofai-sdk
 fastembed>=0.7.0
 scikit-learn>=1.4
+streamlit>=1.40.0

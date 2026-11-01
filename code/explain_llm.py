@@ -47,8 +47,8 @@ def _ids(value):
     return found
 
 
-def validate_polish(text, evidence):
-    if not isinstance(text, str) or not 2 <= len(re.findall(r"[^.!?]+[.!?](?:\s|$)", text.strip())) <= 3:
+def validate_polish(text, evidence, min_sentences=2, max_sentences=3):
+    if not isinstance(text, str) or not min_sentences <= len(re.findall(r"[^.!?]+[.!?](?:\s|$)", text.strip())) <= max_sentences:
         return False
     allowed_numbers = _numbers(evidence)
     for token in re.findall(r"(?<![\w-])(?:\d[\d,]*(?:\.\d+)?)(?![\w-])", text):
