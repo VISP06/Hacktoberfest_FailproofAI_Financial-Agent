@@ -9,6 +9,19 @@ from income_classifier import IncomeClassifier
 import income_classifier as income_classifier_module
 
 
+def test_prompt_distinguishes_employer_confirmed_salary_from_unconfirmed_variable_income(tmp_path):
+    pd.DataFrame(columns=["event_id", "user_id", "event_type", "description", "category", "direction", "amount", "currency", "event_date", "settlement_date", "status", "linked_event_id", "flexibility", "minimum_allowed_amount"]).to_csv(tmp_path / "financial_events.csv", index=False)
+    classifier = IncomeClassifier(str(tmp_path), model_name="test-model")
+    prompt = classifier._prompt([])
+
+    assert income_classifier_module.PROMPT_VERSION == "income-classifier-v5"
+    assert "employer/payroll message confirms the ongoing amount" in prompt
+    assert "explains a deviation" in prompt
+    assert "does not make the salary variable_unconfirmed" in prompt
+    assert "without an employer-confirmed schedule" in prompt
+    assert "do not classify by matching specific words" in prompt
+
+
 def test_prompt_injection_is_untrusted_and_has_no_effect(tmp_path, monkeypatch):
     pd.DataFrame([{
         "event_id": "e1", "user_id": "u1", "event_type": "income",
