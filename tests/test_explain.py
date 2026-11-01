@@ -50,6 +50,42 @@ class ExplanationEvidenceTest(unittest.TestCase):
         self.assertIn("falls below the minimum", text)
         self.assertNotIn("none", text.lower())
 
+    def test_explains_spending_change_and_excluded_variable_income(self):
+        breakdown = {
+            "initial_balance": 120.0,
+            "flows_by_day": {
+                "2026-05-02": [{
+                    "source": "scheduled_event", "event_id": "event-23",
+                    "event_ids": ["event-23"], "description": "Dining out",
+                    "amount": -30.0, "date": "2026-05-02",
+                }]
+            },
+            "income_decisions": [{
+                "series_key": "salary:2", "decision": "excluded",
+                "reason": "variable income policy is exclude",
+            }],
+            "pending_ignored": [],
+            "largest_outflow_drivers": [],
+        }
+        text, _ = build_explanation(
+            balances={"2026-05-01": 120.0, "2026-05-02": 90.0},
+            breakdown=breakdown, minimum_balance=100.0,
+            chosen_option={
+                "method": "full_payment", "completion_date": "2026-05-01",
+                "cost": 20.0, "spending_changes": "reduce_to:event-23:10",
+            },
+            desired_date="2026-05-10", earliest_date_for_full_payment="",
+        )
+
+        self.assertIn(
+            "Without these changes, no safe date for the full amount appears in the 90-day forecast.",
+            text,
+        )
+        self.assertIn(
+            "Reducing dining out is what makes paying in full on 2026-05-01 safe.", text,
+        )
+        self.assertIn("forecast counts no income from salary:2", text)
+
     def test_polish_accepts_valid_and_rejects_invented_number(self):
         evidence = {"amount": 42, "event_ids": ["event-1"]}
         deterministic = "Original explanation. Keep this safe."
