@@ -85,6 +85,10 @@ def validate(output_path, requests_path):
             violations["not_affordable_date"].append(
                 f"{request_id}: status={status!r}, earliest_date_for_full_payment={earliest!r}"
             )
+        if method == "full_payment" and earliest == "" and row.get("spending_changes_needed", "none") == "none":
+            violations["full_payment_earliest_requires_changes"].append(
+                f"{request_id}: full_payment has no safe forecast date and no spending changes"
+            )
 
         plan = row.get("payment_plan", "")
         plan_amounts = []

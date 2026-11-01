@@ -26,9 +26,9 @@ def test_validate_output_checks_shape_and_plan_invariants(tmp_path):
     }
     invalid_row = {
         "request_id": "r2", "amount_safe_to_pay": "60",
-        "affordability_status": "not_affordable", "recommended_payment_method": "installments",
+        "affordability_status": "affordable_with_plan", "recommended_payment_method": "full_payment",
         "payment_plan": "2026-02-02:20|2026-02-01:20",
-        "earliest_date_for_full_payment": "2026-02-01",
+        "earliest_date_for_full_payment": "",
         "spending_changes_needed": "none", "decision_explanation": "unsafe",
     }
     _write_csv(output, EXPECTED_COLUMNS, [valid_row, invalid_row, invalid_row])
@@ -39,4 +39,5 @@ def test_validate_output_checks_shape_and_plan_invariants(tmp_path):
     assert "payment_plan_total" in violations
     assert "payment_plan_chronology" in violations
     assert "not_affordable_date" in violations
+    assert "full_payment_earliest_requires_changes" in violations
     assert "request_ids" in violations

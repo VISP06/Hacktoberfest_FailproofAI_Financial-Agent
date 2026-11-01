@@ -316,14 +316,13 @@ def run_pipeline(requests_path=None, output_file=OUTPUT_FILE, forecast_options=N
                             f" The earliest safe full-payment date, {earliest_full_date}, "
                             f"is after the desired date, {desired_date}."
                         )
-                    result_earliest_date = earliest_full_date or str(best_plan["completion_date"])
                     results.append({
                         "request_id": req_id,
                         "amount_safe_to_pay": round(amount_safe_today, 2),
                         "affordability_status": best_plan["status"],
                         "recommended_payment_method": best_plan["method"],
                         "payment_plan": format_payment_plan(best_plan["plan_dict"]),
-                        "earliest_date_for_full_payment": result_earliest_date,
+                        "earliest_date_for_full_payment": earliest_full_date,
                         "spending_changes_needed": best_plan["spending_changes"],
                         "decision_explanation": explanation,
                         "explanation_evidence": evidence,
