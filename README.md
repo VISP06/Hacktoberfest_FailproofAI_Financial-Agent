@@ -30,6 +30,7 @@ Run the deterministic, cache-only accuracy evaluation or the local retrieval eva
 ```bash
 python evaluation/evaluate.py
 python evaluation/eval_retrieval.py
+python evaluation/compare_income_caches.py cache-a.csv cache-b.csv
 ```
 
 Explicitly populate the income-classification cache (this command can make model/API calls):
@@ -42,6 +43,7 @@ python code/main.py --fill-income-cache
 
 - `BUY_OR_WAIT_MODEL`: model used by the optional receipt/message perception integrations and the default income-classifier model.
 - `INCOME_CLASSIFIER_MODEL`: overrides `BUY_OR_WAIT_MODEL` for income classification.
+- `INCOME_CACHE_PATH`: income-classification cache CSV path (default `dataset/income_classes.csv`).
 - `INCOME_FILL_DELAY`: delay in seconds between user batches when filling the income cache (default `8`).
 - `INCOME_BATCH_SIZE`: number of users per income-classification batch (default `5`).
 

@@ -34,7 +34,7 @@ def _clean(value):
 class IncomeClassifier:
     def __init__(self, dataset_dir="dataset", cache_path=None, model_name=None):
         self.dataset_dir = dataset_dir
-        self.cache_path = cache_path or os.path.join(dataset_dir, "income_classes.csv")
+        self.cache_path = cache_path or os.getenv("INCOME_CACHE_PATH") or os.path.join(dataset_dir, "income_classes.csv")
         self.model_name = model_name or os.getenv("INCOME_CLASSIFIER_MODEL") or os.getenv("BUY_OR_WAIT_MODEL", "gemini/gemini-1.5-flash")
         self.model_calls = 0
         self.cache_hits = 0
@@ -122,6 +122,9 @@ class IncomeClassifier:
         existing = self._load_cache()
         existing.update({(row["cache_key"], row["series_key"]): row for row in rows})
         columns = ["cache_key", "user_id", "request_date", "series_key", "class", "reason", "evidence_ids", "amount_valid", "model_name"]
+        cache_dir = os.path.dirname(self.cache_path)
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
         pd.DataFrame(list(existing.values()), columns=columns).to_csv(self.cache_path, index=False)
 
     @staticmethod

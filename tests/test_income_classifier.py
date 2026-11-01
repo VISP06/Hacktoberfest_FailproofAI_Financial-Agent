@@ -22,6 +22,18 @@ def test_prompt_distinguishes_employer_confirmed_salary_from_unconfirmed_variabl
     assert "do not classify by matching specific words" in prompt
 
 
+def test_income_cache_path_environment_override(tmp_path, monkeypatch):
+    pd.DataFrame(columns=["event_id", "user_id", "event_type", "description", "category", "direction", "amount", "currency", "event_date", "settlement_date", "status", "linked_event_id", "flexibility", "minimum_allowed_amount"]).to_csv(tmp_path / "financial_events.csv", index=False)
+    configured_path = tmp_path / "custom" / "income.csv"
+    monkeypatch.setenv("INCOME_CACHE_PATH", str(configured_path))
+
+    classifier = IncomeClassifier(str(tmp_path))
+
+    assert classifier.cache_path == str(configured_path)
+    classifier._save_cache([{"cache_key": "key", "user_id": "u1", "request_date": "2026-01-01", "series_key": "salary:1", "class": "confirmed_recurring"}])
+    assert configured_path.exists()
+
+
 def test_prompt_injection_is_untrusted_and_has_no_effect(tmp_path, monkeypatch):
     pd.DataFrame([{
         "event_id": "e1", "user_id": "u1", "event_type": "income",
