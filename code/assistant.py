@@ -334,6 +334,7 @@ class Assistant:
             )
             reply = response.get("reply") if isinstance(response, dict) else None
             if not validate_polish(reply, tool_output, min_sentences=3, max_sentences=5):
+                self.model_unavailable = True
                 fp.event.error(
                     session_id=self.session_id, agent_id="assistant",
                     error_type="ReplyValidationFailed",
@@ -433,6 +434,57 @@ class Assistant:
             with fp.agent("assistant", goal="Compare payment options with the deterministic forecast"):
                 return self._advise(form)
 
+    def situation(self):
+        """Compute the no-payment baseline and evidence without making any model call."""
+        with fp.session(self.session_id):
+            with fp.agent("assistant", goal="Summarize the user's current financial situation"):
+                request = pd.DataFrame([{"request_id": f"situation_{self.run_id}",
+                                         "user_id": self.user_id,
+                                         "request_date": self.as_of_date}])
+                classifier = IncomeClassifier(self.dataset_dir)
+                classes = classifier.classify_requests(
+                    request, environment="calibration", sleep_between_users=0)
+                balances, minimum, breakdown = self.engine.simulate_90_days(
+                    self.user_id, self.as_of_date, return_breakdown=True,
+                    income_classes=classes, **FORECAST_CONFIG)
+                start = dt.date.fromisoformat(self.as_of_date)
+                low_day = min(balances, key=balances.get)
+                income_by_series = {}
+                counted_series = {str(item.get("series_key")) for item in
+                                  breakdown.get("income_decisions", [])
+                                  if item.get("decision") == "counted"}
+                for day_flows in breakdown.get("flows_by_day", {}).values():
+                    for flow in day_flows:
+                        key = str(flow.get("series_key") or "")
+                        if (flow.get("source") == "income" and key in counted_series
+                                and float(flow.get("amount", 0)) > 0):
+                            income_by_series[key] = income_by_series.get(key, 0.0) + float(flow["amount"])
+                monthly_income = [{"series_key": key, "amount": round(value / 3, 2)}
+                                  for key, value in sorted(income_by_series.items())]
+                considered_events = {str(flow.get("event_id"))
+                                     for values in breakdown.get("flows_by_day", {}).values()
+                                     for flow in values if flow.get("event_id")}
+                pending_rows = self.engine.events[
+                    self.engine.events.user_id.astype(str).eq(self.user_id)
+                    & self.engine.events.status.astype(str).str.lower().isin(["pending", "scheduled"])]
+                considered = sorted(set(pending_rows.event_id.astype(str)) & considered_events)
+                ignored = list(map(str, breakdown.get("pending_ignored", [])))
+                outflows = {days: sum(-float(flow.get("amount", 0))
+                                      for day, flows in breakdown.get("flows_by_day", {}).items()
+                                      if day <= (start + timedelta(days=days)).isoformat()
+                                      for flow in flows if float(flow.get("amount", 0)) < 0)
+                            for days in (30, 90)}
+                return {"current_balance": float(breakdown["initial_balance"]),
+                        "minimum_balance": float(minimum),
+                        "lowest_projected_balance": float(balances[low_day]),
+                        "lowest_projected_date": low_day,
+                        "monthly_income_counted": monthly_income or "No recurring income counted",
+                        "monthly_income_total": sum(item["amount"] for item in monthly_income),
+                        "committed_outflows_next_30_days": outflows[30],
+                        "committed_outflows_next_90_days": outflows[90],
+                        "pending_items": {"considered": considered, "ignored": ignored},
+                        "balances": balances, "breakdown": breakdown}
+
     def _advise(self, form):
         """Return deterministic, fully ranked payment scenarios, optionally polishing wording."""
         intent = self._intent_from_form(form)
@@ -495,10 +547,14 @@ class Assistant:
         evidence = decision["evidence"]
         low_day = min(evidence["balances"], key=evidence["balances"].get)
         exp = evidence.get("explanation_evidence", {})
-        considered_ids = sorted({str(flow.get("event_id"))
-                                 for values in breakdown.get("flows_by_day", {}).values()
-                                 for flow in values if flow.get("event_id")})
-        evidence_ids = sorted(set(considered_ids)
+        all_flow_ids = {str(flow.get("event_id"))
+                        for values in breakdown.get("flows_by_day", {}).values()
+                        for flow in values if flow.get("event_id")}
+        pending_rows = self.engine.events[
+            self.engine.events.user_id.astype(str).eq(self.user_id)
+            & self.engine.events.status.astype(str).str.lower().isin(["pending", "scheduled"])]
+        considered_ids = sorted(set(pending_rows.event_id.astype(str)) & all_flow_ids)
+        evidence_ids = sorted(set(all_flow_ids)
                               | set(map(str, evidence.get("retrieved_message_ids", [])))
                               | set(map(str, breakdown.get("pending_ignored", []))))
         monthly_incomes = exp.get("income_counted", [])

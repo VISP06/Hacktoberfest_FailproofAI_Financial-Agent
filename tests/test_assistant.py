@@ -133,3 +133,19 @@ def test_what_if_followup_reuses_prior_request_context():
     assert structured["intent"]["initial_fraction"] == 0.5
     assert decision_tool.call_count == 2
     assert "half" in reply.lower()
+
+
+def test_situation_is_deterministic_and_does_not_call_client():
+    def forbidden_client(**_kwargs):
+        raise AssertionError("situation must not call a model")
+
+    assistant = Assistant("user_05", "2026-06-01", client=forbidden_client)
+    result = assistant.situation()
+
+    assert result["current_balance"] > 0
+    assert result["minimum_balance"] > 0
+    assert isinstance(result["lowest_projected_date"], str)
+    assert "monthly_income_counted" in result
+    assert result["committed_outflows_next_30_days"] >= 0
+    assert result["committed_outflows_next_90_days"] >= 0
+    assert set(result["pending_items"]) == {"considered", "ignored"}
