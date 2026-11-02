@@ -61,6 +61,22 @@ def test_prompt_injection_is_untrusted_and_has_no_effect(tmp_path, monkeypatch):
     assert result[0]["class"] == "unknown"
 
 
+def test_snapshot_with_no_events_in_lookback_has_empty_series(tmp_path):
+    pd.DataFrame([{
+        "event_id": "old", "user_id": "u1", "event_type": "income",
+        "description": "Salary", "category": "salary", "direction": "credit",
+        "amount": 100, "currency": "USD", "event_date": "2020-01-01",
+        "settlement_date": "2020-01-01", "status": "settled",
+    }]).to_csv(tmp_path / "financial_events.csv", index=False)
+    classifier = IncomeClassifier(str(tmp_path))
+
+    snapshot = classifier._snapshot("u1", "2026-06-01")
+
+    assert snapshot["user_id"] == "u1"
+    assert snapshot["request_date"] == "2026-06-01"
+    assert snapshot["series"] == {}
+
+
 def test_single_occurrence_classification_requires_citation_and_never_confirms(tmp_path):
     pd.DataFrame(columns=["event_id", "user_id", "event_type", "description", "category", "direction", "amount", "currency", "event_date", "settlement_date", "status", "linked_event_id", "flexibility", "minimum_allowed_amount"]).to_csv(tmp_path / "financial_events.csv", index=False)
     classifier = IncomeClassifier(str(tmp_path), model_name="test-model")

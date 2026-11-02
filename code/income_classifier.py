@@ -79,7 +79,8 @@ class IncomeClassifier:
         events = events[status.eq("settled") & events.parsed_date.notna() & (events.parsed_date < end) & (events.parsed_date >= start)]
         events = events[events.apply(self._is_credit, axis=1)].copy()
         series = {}
-        for _, row in events.sort_values("parsed_date").iterrows():
+        ordered_events = events.sort_values("parsed_date") if "parsed_date" in events else events.iloc[0:0]
+        for _, row in ordered_events.iterrows():
             key = self.series_key(row)
             series.setdefault(key, []).append({
                 "event_id": str(row.event_id), "date": row.parsed_date.isoformat(),

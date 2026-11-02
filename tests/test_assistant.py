@@ -68,6 +68,7 @@ def test_extraction_uses_fake_client_with_strict_schema():
     assert len(reply.split(".")) >= 3
     assert client.calls[0]["response_format"]["type"] == "json_schema"
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
+    assert client.calls[0]["timeout"] == 25
 
 
 def test_missing_amount_asks_one_question_without_running_tools():

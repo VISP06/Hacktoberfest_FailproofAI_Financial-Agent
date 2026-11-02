@@ -88,7 +88,8 @@ def decide_request(engine, classes, row, options, payment_options=None):
     options["income_classes"] = classes
     simulation_options = {
         key: value for key, value in options.items()
-        if key not in {"enable_spending_changes", "_preserve_fixture_totals"}
+        if key not in {"enable_spending_changes", "_preserve_fixture_totals",
+                       "_considered_methods", "_partial_payment_amount"}
     }
     results = []
     user_id = str(row["user_id"])
