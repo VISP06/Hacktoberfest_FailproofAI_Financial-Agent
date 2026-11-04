@@ -3,17 +3,19 @@
 import datetime as dt
 import os
 import re
-import uuid
 
 import failproofai_sdk as fp
 
 from assistant import Assistant
 from money import money
+from plan_dates import installment_completion_date
 
 
 _CURRENCIES = {"INR": "INR", "USD": "USD", "EUR": "EUR", "ZAR": "ZAR", "IDR": "IDR"}
 _SYMBOLS = {"₹": "INR", "$": "USD", "€": "EUR", "R": "ZAR"}
 _AMOUNT_RE = re.compile(r"(?<![\w.])(?:\d+(?:[, ]\d{3})+|\d+(?:\.\d+)?)(?![\d.])", re.I)
+BANNER = ("Glacier: deterministic payment planning. Try: ‘Can I afford ₹12,000?’, ‘Laptop in 3 installments’, "
+          "‘What if I wait?’ Commands: /help, /users, /why, /situation, /date, /user, /reset, /export.")
 
 
 def parse_amount(text):
@@ -29,6 +31,8 @@ def parse_amount(text):
         if found:
             currency = code
             break
+    if re.search(r"(?<!\w)rs\.?\s*\d|\brupees?\b", value, re.I):
+        currency = "INR"
     for match in _AMOUNT_RE.finditer(value):
         raw = match.group(0).replace(",", "").replace(" ", "")
         try:
@@ -49,7 +53,7 @@ def parse_amount(text):
 
 
 class TerminalSession:
-    def __init__(self, user_id="user_05", as_of_date=None, dataset_dir=None, assistant=None):
+    def __init__(self, user_id="user_07", as_of_date=None, dataset_dir=None, assistant=None):
         self.dataset_dir = dataset_dir or os.path.join(os.path.dirname(__file__), "..", "dataset")
         self.assistant = assistant
         if assistant is None:
@@ -69,7 +73,38 @@ class TerminalSession:
         self.question_index = 0
         self.invalid_attempts = 0
         self.report = None
+        self.latest_result = None
+        self.latest_wording = "deterministic text"
         self.last_blocks = []
+
+    def _earliest_installment_completion(self):
+        return installment_completion_date(self.as_of_date, min(self.installment_counts))
+
+    @property
+    def installment_counts(self):
+        return (3, 6, 12)
+
+    def _eligible_installment_counts(self):
+        deadline = self.form.get("pay_by_date")
+        if not deadline:
+            return list(self.installment_counts)
+        return [count for count in self.installment_counts
+                if installment_completion_date(self.as_of_date, count) <= dt.date.fromisoformat(str(deadline)[:10])]
+
+    def _installment_options_text(self):
+        counts = self._eligible_installment_counts()
+        if not self.form.get("pay_by_date"):
+            counts = list(self.installment_counts)
+        return "1 no (default)" + "".join(f", {idx + 2} {count} months" for idx, count in enumerate(counts))
+
+    def _installment_deadline_message(self, deadline):
+        earliest = installment_completion_date(self.as_of_date, min(self.installment_counts))
+        return (f"No installment option completes by {deadline}; the shortest plan ends "
+                f"on {earliest}, after the deadline.")
+
+    def _has_installment_conflict(self, deadline):
+        count = self.form.get("installment_count") if self.form.get("allow_installments") else None
+        return bool(count and deadline and installment_completion_date(self.as_of_date, count) > dt.date.fromisoformat(str(deadline)[:10]))
 
     def _latest_date(self, user_id):
         import pandas as pd
@@ -87,9 +122,14 @@ class TerminalSession:
         options = {
             "deadline": "When do you need to pay? [1 none (default), 2 within 14 days, 3 end of this month, 4 type YYYY-MM-DD]",
             "partial": "Is partial payment acceptable? [1 no (default), 2 yes]",
-            "installments": "Use installments? [1 no (default), 2 3 months, 3 6 months, 4 12 months]",
+            "installments": f"Use installments? [{self._installment_options_text()}]",
             "fee": "Optional installment fee percentage? [Enter for 0%]",
         }
+        if question == "deadline_conflict":
+            earliest = installment_completion_date(self.as_of_date, self.form["installment_count"])
+            return self._block("prompt", f"The selected installment plan ends {earliest}, after that deadline. Choose 1 none, or type a date on or after {earliest}.")
+        if question == "date":
+            return self._block("prompt", "Type a date in YYYY-MM-DD format.")
         return self._block("prompt", options[question])
 
     def _start(self, line):
@@ -113,15 +153,27 @@ class TerminalSession:
         count = re.search(r"\b(\d+)\s+installments?\b", lowered)
         if count:
             self.form.update(allow_installments=True, installment_count=int(count.group(1)))
+            fee_match = re.search(r"(\d+(?:\.\d+)?)\s*%", lowered)
+            if fee_match:
+                self.form["installment_fee_pct"] = float(fee_match.group(1))
+            else:
+                self.questions.append("fee")
         elif "installment" not in lowered:
             self.questions.append("installments")
         else:
-            self.form.update(allow_installments=True)
-            self.questions.append("fee")
+            self.questions.append("installments")
+        if self.form.get("allow_installments") and self.form.get("pay_by_date") and self._has_installment_conflict(self.form["pay_by_date"]):
+            deadline = self.form["pay_by_date"]
+            self.questions = [q for q in self.questions if q != "deadline"]
+            self.questions.insert(0, "deadline_conflict")
+            self._block("text", f"The selected {self.form['installment_count']}-installment plan conflicts with the deadline {deadline}.")
         self.phase = "intake"
         self.question_index = 0
         if re.search(r"\bjust advise\b", lowered):
             self.questions = []
+        if self.form.get("pay_by_date") and not self._eligible_installment_counts() and "installments" in self.questions:
+            self.questions.remove("installments")
+            self._block("text", self._installment_deadline_message(self.form["pay_by_date"]))
         if self.questions:
             return [self._prompt()]
         return self._make_report()
@@ -150,14 +202,19 @@ class TerminalSession:
     def _accept_answer(self, line):
         key = self.questions[self.question_index]
         value = line.strip()
+        dynamic_counts = self._eligible_installment_counts()
+        installment_choices = {str(idx + 2): count for idx, count in enumerate(dynamic_counts)}
         choices = {"deadline": {"1": None, "2": "14", "3": "month", "4": "date"},
-                   "partial": {"1": False, "2": True},
-                   "installments": {"1": False, "2": 3, "3": 6, "4": 12}}
+                   "deadline_conflict": {"1": None}, "partial": {"1": False, "2": True},
+                   "installments": {"1": False, **installment_choices}}
+        is_date = key == "date" or (key == "deadline_conflict" and value not in {"", "1"})
         valid = value == "" or (key in choices and value in choices[key]) or (key == "fee" and bool(re.fullmatch(r"\d+(?:\.\d+)?", value)))
-        if key == "date" and value:
+        if is_date and value:
             try:
-                dt.date.fromisoformat(value)
+                parsed_date = dt.date.fromisoformat(value)
                 valid = True
+                if key == "deadline_conflict":
+                    valid = parsed_date >= installment_completion_date(self.as_of_date, self.form["installment_count"])
             except ValueError:
                 valid = False
         if not valid:
@@ -166,7 +223,7 @@ class TerminalSession:
                 return [self._prompt()]
             value = ""
         self.invalid_attempts = 0
-        if key == "deadline":
+        if key in {"deadline", "deadline_conflict"}:
             if value == "2":
                 self.form["pay_by_date"] = (dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=14)).isoformat()
             elif value == "3":
@@ -175,30 +232,51 @@ class TerminalSession:
             elif value == "4":
                 self.questions[self.question_index] = "date"
                 return [self._block("prompt", "Type a date in YYYY-MM-DD format.")]
+            elif key == "deadline_conflict" and value not in {"", "1"}:
+                self.form["pay_by_date"] = dt.date.fromisoformat(value).isoformat()
             else:
                 self.form["pay_by_date"] = None
         elif key == "date":
             self.form["pay_by_date"] = dt.date.fromisoformat(value).isoformat() if value else None
         elif key == "partial": self.form["allow_partial"] = value == "2"
         elif key == "installments":
-            self.form["allow_installments"] = value in {"2", "3", "4"}
-            if value in {"2", "3", "4"}: self.form["installment_count"] = choices[key][value]
+            self.form["allow_installments"] = bool(value and value != "1")
+            if value and value != "1": self.form["installment_count"] = choices[key][value]
             if self.form["allow_installments"]: self.questions.insert(self.question_index + 1, "fee")
         elif key == "fee": self.form["installment_fee_pct"] = float(value) if value else 0.0
         self.question_index += 1
-        if self.question_index < len(self.questions): return [self._prompt()]
+        blocks = []
+        if key in {"deadline", "deadline_conflict"} and self.form.get("pay_by_date") and self.form.get("allow_installments") and self._has_installment_conflict(self.form["pay_by_date"]):
+            conflict_index = max(0, self.question_index - 1)
+            self.questions[conflict_index] = "deadline_conflict"
+            self.question_index = conflict_index
+            self._block("text", f"The selected installment plan conflicts with the deadline {self.form['pay_by_date']}.")
+            self._prompt()
+            return self.last_blocks
+        if key in {"deadline", "deadline_conflict"} and self.form.get("pay_by_date") and not self._eligible_installment_counts() and "installments" in self.questions[self.question_index:]:
+            self.questions.remove("installments")
+            blocks.append(self._block("text", self._installment_deadline_message(self.form["pay_by_date"])))
+        if self.question_index < len(self.questions):
+            blocks.append(self._prompt())
+            return blocks
         return self._make_report()
 
     def _make_report(self):
         self.phase = "reported"
         self.form.setdefault("pay_by_date", None)
         try:
+            home = str(self.assistant.engine.get_user_home_currency(self.user_id))
+            converted, _ = self.assistant._home_amount(self.form["amount"], self.form["currency"])
+            if converted is None:
+                return [self._block("error", f"Your account is in {home} and I have no {self.form['currency']} to {home} rate. Type the amount in {home}, or switch accounts with /user.")]
             with fp.session(self.session_id):
                 with fp.agent("assistant", goal="Produce deterministic payment advice"):
                     with fp.tool_call("advise", input={"user_id": self.user_id, "amount": self.form["amount"]}) as tool:
                         result = self.assistant.advise(self.form)
                         tool.output = result
             self.report = result
+            self.latest_result = result
+            self.latest_wording = "deterministic text"
             text = self.render_report(result)
             return [self._block("report", text)]
         except Exception as exc:
@@ -243,7 +321,17 @@ class TerminalSession:
         text = str(line or "").strip()
         command = text.lower()
         if command.startswith("/help"):
-            self._block("text", "/user <id> · /date YYYY-MM-DD · /situation · /reset · /export · /help · /skip")
+            self._block("text", "Start with an amount and optional currency. Intake asks only unanswered questions; Enter accepts defaults and /skip uses defaults. Commands: /user <id>, /users [currency], /date YYYY-MM-DD, /situation, /why, /reset, /export, /help, /skip. Use /export after a report to get plain text.")
+        elif command == "/why":
+            self._block("text", self._why_text())
+        elif command == "/users" or command.startswith("/users "):
+            requested = text.split(maxsplit=1)[1].upper() if len(text.split()) > 1 else None
+            profiles = self.assistant.engine.profiles
+            if requested:
+                profiles = profiles[profiles.home_currency.astype(str).str.upper().eq(requested)]
+            lines = [f"{uid} · {row.home_currency} · {money(row.current_available_balance, row.home_currency)}"
+                     for uid, row in profiles.head(8).iterrows()]
+            self._block("text", "Accounts" + (f" in {requested}" if requested else "") + ":\n" + ("\n".join(lines) or "No matching accounts."))
         elif command == "/export": self._block("text", self.report or "No report to export yet.")
         elif command == "/situation":
             s = self.assistant.situation(); c = self.assistant.engine.get_user_home_currency(self.user_id)
@@ -280,7 +368,38 @@ class TerminalSession:
                 why = report_text.split("WHY\n", 1)[-1].split("\n\nNUMBERS", 1)[0]
                 self._block("text", why)
             elif self.report:
-                self._block("text", self.report["decision"].get("decision_explanation", "The previous recommendation remains based on the same forecast."))
+                report_text = self.render_report(self.report)
+                self._block("text", report_text.split("\n\nNUMBERS", 1)[0])
         else:
             self._start(text)
         return self.last_blocks
+
+    def _why_text(self):
+        result = self.latest_result
+        if not result:
+            return "No completed answer yet. Ask an amount first."
+        start = dt.date.fromisoformat(self.as_of_date)
+        events = self.assistant.engine.events
+        user_events = events[events.user_id.astype(str).eq(self.user_id)]
+        evidence = result.get("evidence", {})
+        balance_dates = sorted(evidence.get("balances", {}))
+        window_start = balance_dates[0] if balance_dates else start.isoformat()
+        window_end = balance_dates[-1] if balance_dates else (start + dt.timedelta(days=90)).isoformat()
+        breakdown = evidence.get("breakdown", {})
+        decisions = result.get("income_stream_classes", [])
+        if not decisions:
+            decisions = breakdown.get("income_decisions", [])
+        if not decisions:
+            decisions = evidence.get("explanation_evidence", {}).get("income_decisions", [])
+        income_lines = [f"{entry.get('series_key', 'unknown stream')}: {entry.get('decision', 'unknown')} — {entry.get('reason', 'reason unavailable')}"
+                        for entry in decisions]
+        messages = evidence.get("retrieved_message_ids", [])
+        if not messages:
+            messages = evidence.get("explanation_evidence", {}).get("retrieved_message_ids", [])
+        option_names = [option.get("type", "unknown") for option in result.get("ranked_options", [])]
+        return (f"Data loaded: {len(user_events)} events for {self.user_id}; as-of {self.as_of_date}; "
+                f"90-day window {window_start} through {window_end}.\n"
+                f"Income streams/classes: {'; '.join(income_lines) if income_lines else 'No stream-class detail in engine evidence.'}\n"
+                f"Retrieved message IDs: {', '.join(map(str, messages)) if messages else 'none in engine evidence.'}\n"
+                f"Options considered: {', '.join(option_names) if option_names else 'none'}.\n"
+                f"Wording: {self.latest_wording}.\nFailproof session: {self.session_id}")

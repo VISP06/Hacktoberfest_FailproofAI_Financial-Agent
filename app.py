@@ -1,9 +1,9 @@
 """Glacier browser terminal for deterministic payment advice."""
 
 import datetime as dt
+import html
 import os
 import sys
-import uuid
 
 import pandas as pd
 import streamlit as st
@@ -12,9 +12,9 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(ROOT, "code"))
 from assistant import Assistant
 from money import money
-from terminal_flow import TerminalSession
+from terminal_flow import BANNER, TerminalSession
 
-APP_VERSION = "glacier-terminal-v2"
+APP_VERSION = "glacier-terminal-v3"
 DATASET = os.path.join(ROOT, "dataset")
 profiles = pd.read_csv(os.path.join(DATASET, "financial_profiles.csv"), dtype={"user_id": str})
 
@@ -33,7 +33,7 @@ h1,h2,h3{color:#5CE1E6;text-shadow:0 0 10px #5CE1E644;font-family:inherit}
 </style>""", unsafe_allow_html=True)
 
 user_ids = profiles.user_id.astype(str).tolist()
-user_id = st.session_state.get("terminal_user", "user_05" if "user_05" in user_ids else user_ids[0])
+user_id = st.session_state.get("terminal_user", "user_07" if "user_07" in user_ids else user_ids[0])
 date_key = st.session_state.get("terminal_date")
 session_key = f"terminal_session_{APP_VERSION}"
 session = st.session_state.get(session_key)
@@ -47,7 +47,11 @@ if (not isinstance(session, TerminalSession) or not hasattr(getattr(session, "as
     session = TerminalSession(user_id, date_key, dataset_dir=DATASET,
                               assistant=Assistant(user_id, date_key, dataset_dir=DATASET, no_llm=True))
     st.session_state[session_key] = session
-    st.session_state.terminal_output = [{"kind": "text", "plain_text": "glacier terminal ready · type /help for commands"}]
+    currency = str(session.assistant.engine.get_user_home_currency(user_id))
+    st.session_state.terminal_output = [
+        {"kind": "text", "plain_text": BANNER},
+        {"kind": "text", "plain_text": f"Account currency: {currency}. Amounts without a currency are treated as {currency}."},
+    ]
 
 try:
     situation = session.assistant.situation()
@@ -58,7 +62,7 @@ except Exception:
     status_line = f"glacier > {user_id} | {currency} | as-of {session.as_of_date}"
 st.markdown(f'<div class="status">{status_line}</div>', unsafe_allow_html=True)
 output = st.session_state.get("terminal_output", [])
-st.markdown('<div class="output">' + "\n\n".join(str(x["plain_text"]) for x in output) + '</div>', unsafe_allow_html=True)
+st.markdown('<div class="output">' + "\n\n".join(html.escape(str(x["plain_text"])) for x in output) + '</div>', unsafe_allow_html=True)
 reports = [x["plain_text"] for x in output if x.get("kind") == "report"]
 if reports:
     st.download_button("/export · download plain-text report", reports[-1], file_name="glacier-report.txt", mime="text/plain")

@@ -19,6 +19,7 @@ from forecast import FORECAST_CONFIG
 from income_classifier import IncomeClassifier
 from main import decide_request
 from observability import logged_completion, new_run_id
+from plan_dates import installment_completion_date
 from retrieval import retrieve_messages
 
 
@@ -530,9 +531,11 @@ class Assistant:
         if terms:
             fee = float(terms["fee"] or 0)
             count = int(terms["count"])
+            interval_days = int(terms.get("interval_days") or 30)
+            completion = installment_completion_date(self.as_of_date, count, interval_days)
             plan = {}
             for idx in range(count):
-                day = (start + timedelta(days=30*idx)).isoformat()
+                day = (completion - timedelta(days=interval_days * (count - idx - 1))).isoformat()
                 plan[day] = (amount+fee)/count
             add("installments", plan, amount+fee)
         if earliest and earliest > self.as_of_date:
@@ -558,8 +561,13 @@ class Assistant:
                               | set(map(str, evidence.get("retrieved_message_ids", [])))
                               | set(map(str, breakdown.get("pending_ignored", []))))
         monthly_incomes = exp.get("income_counted", [])
+        income_stream_classes = [{"series_key": str(key[2]), "class": str(value.get("class", "unknown")),
+                                  "reason": str(value.get("reason", ""))}
+                                 for key, value in classes.items() if len(key) >= 3
+                                 and str(key[0]) == self.user_id and str(key[1]) == self.as_of_date]
         return {"headline": (f"Recommended: {chosen['type'].replace('_', ' ')}" if chosen else "No safe option found"),
                 "recommended_option": chosen, "ranked_options": ranked,
+                "income_stream_classes": income_stream_classes,
                 "situation": {"current_balance": profile.current_available_balance,
                               "minimum_balance": minimum, "lowest_projected_balance": evidence["balances"][low_day],
                               "lowest_projected_date": low_day,

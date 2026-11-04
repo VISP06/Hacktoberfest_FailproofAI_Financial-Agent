@@ -2,12 +2,12 @@
 
 import argparse
 
-from terminal_flow import TerminalSession
+from terminal_flow import BANNER, TerminalSession
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--user", default="user_05")
+    parser.add_argument("--user", default="user_07")
     parser.add_argument("--date", dest="as_of_date")
     args = parser.parse_args(argv)
     try:
@@ -15,7 +15,9 @@ def main(argv=None):
     except ValueError as exc:
         print(f"\033[91m{exc}\033[0m")
         return 2
-    print("glacier > deterministic payment advisor · /help for commands")
+    currency = str(session.assistant.engine.get_user_home_currency(session.user_id))
+    print(BANNER)
+    print(f"Account currency: {currency}. Amounts without a currency are treated as {currency}.")
     try:
         while True:
             try: line = input("\033[96m>\033[0m ")

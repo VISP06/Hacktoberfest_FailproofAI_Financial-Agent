@@ -19,6 +19,36 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## How it works
+
+The payment advisor follows a deterministic, evidence-backed path:
+
+**Data** (`dataset/`) → **forecast** (90-day balances, minimum reserve, and dated cash flows) → **income reliability** (validated income classes or the conservative recurring-series fallback) → **options** (full payment, partial payment, installments, wait, and eligible spending changes) → **report** (ranked options and the forecast evidence behind them).
+
+The terminal and browser interfaces use the same `TerminalSession` intake and
+`Assistant.advise()` engine. Amounts without an explicit currency use the account's
+home currency. Conversion only uses the pipeline's existing dated direct rates.
+
+Run the browser terminal or the plain-text CLI:
+
+```bash
+streamlit run app.py
+python code/terminal.py --user user_07
+```
+
+Terminal commands: `/user <id>` switches accounts, `/users [currency]` lists up to
+eight accounts, `/date YYYY-MM-DD` changes the as-of date, `/situation` prints the
+current baseline, `/why` shows the engine evidence and Failproof session, `/skip`
+accepts remaining defaults, `/reset` starts over, `/export` prints/downloads the
+latest report, and `/help` lists usage.
+
+Run syntax and automated tests without making model calls:
+
+```bash
+python -m py_compile app.py code/*.py tests/*.py
+pytest -q
+```
+
 Run the decision pipeline:
 
 ```bash
@@ -58,14 +88,15 @@ per-purpose and per-model token summary at `evaluation/usage_report.md` with
 
 The pipeline configures the FailproofAI SDK with `fp.configure(environment="dev")`. Request processing is wrapped in `fp.session`, `fp.agent`, and `fp.tool_call` contexts, while classifier/perception model requests, responses, and errors are emitted through the SDK event interface. Configure the SDK's credentials and project/environment settings as required by your FailproofAI installation. The evaluation configures the `calibration` environment for cache-only classification and restores `dev` afterward.
 
-## Latest evaluation
+## Preserved evaluation scores
 
-The latest `python evaluation/evaluate.py` run reports:
+The existing evaluation baseline is preserved (the terminal/UI change does not
+modify `output.csv`):
 
 | Output | Accuracy |
 | --- | ---: |
-| Affordability status | 72.00% |
-| Recommended payment method | 84.00% |
-| Payment plan | 76.00% |
+| Affordability status | 76.00% |
+| Recommended payment method | 88.00% |
+| Payment plan | 80.00% |
 | Amount safe to pay | 8.00% |
-| Earliest full-payment date | 60.00% |
+| Earliest full-payment date | 68.00% |

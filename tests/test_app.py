@@ -23,7 +23,7 @@ def test_stale_session_state_is_rebuilt(monkeypatch):
     for key in ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
-    at.session_state["terminal_session_glacier-terminal-v2"] = object()
+    at.session_state["terminal_session_glacier-terminal-v3"] = object()
     at.run()
     assert not at.exception
-    assert isinstance(at.session_state["terminal_session_glacier-terminal-v2"].__class__.__name__, str)
+    assert isinstance(at.session_state["terminal_session_glacier-terminal-v3"].__class__.__name__, str)
