@@ -17,6 +17,7 @@ from plan_dates import installment_completion_date
     ("500 USD", 500, "USD"), ("0 INR", None, "INR"), ("no amount", None, None),
     ("Rs 500", 500, "INR"), ("Rs. 500", 500, "INR"), ("500 rupee", 500, "INR"),
     ("500 rupees", 500, "INR"),
+    ("EUR 5,414.20", 5414.2, "EUR"), ("ZAR 15,488", 15488, "ZAR"),
 ])
 def test_parse_amount(text, expected, currency):
     amount, actual_currency = parse_amount(text)

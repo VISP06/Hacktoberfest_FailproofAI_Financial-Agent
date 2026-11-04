@@ -3,6 +3,7 @@
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import re
 import time
@@ -508,11 +509,26 @@ class Assistant:
             **FORECAST_CONFIG)
         start = dt.date.fromisoformat(self.as_of_date)
         deadline = intent["desired_date"]
-        earliest = next((d for d, balance in baseline.items() if d >= self.as_of_date and balance - amount >= minimum), None)
+        forecast_days = sorted(d for d in baseline if d >= self.as_of_date)
+        earliest = next((day for day in forecast_days
+                         if all(baseline[later] - amount >= minimum
+                                for later in forecast_days if later >= day)), None)
         scenarios = []
-        def add(kind, plan, total=None):
-            if not plan:
-                return
+        def add(kind, plan, total=None, intended_total=None):
+            entries = list(plan.items()) if hasattr(plan, "items") else list(plan)
+            if not entries:
+                return None
+            days = [str(day) for day, _value in entries]
+            expected_total = (float(intended_total) if intended_total is not None else
+                              float(total) if total is not None else
+                              sum(float(value) for _day, value in entries))
+            try:
+                assert len(days) == len(set(days)), "payment plan contains date collisions"
+                assert math.isclose(sum(float(value) for _day, value in entries),
+                                    expected_total, rel_tol=0, abs_tol=0.01), "payment plan total mismatch"
+            except AssertionError:
+                return None
+            plan = {day: float(value) for day, value in entries}
             projected = {day: balance - sum(value for pday, value in plan.items() if pday <= day)
                          for day, balance in baseline.items()}
             low_date = min(projected, key=projected.get)
@@ -522,31 +538,35 @@ class Assistant:
                               "lowest_projected_balance": round(projected[low_date], 2), "lowest_projected_date": low_date,
                               "meets_deadline": (completion <= deadline if deadline else None),
                               "safe": projected[low_date] >= minimum})
-        add("pay_in_full_now", {self.as_of_date: amount})
+            return scenarios[-1]
+        add("pay_in_full_now", [(self.as_of_date, amount)], intended_total=amount)
         capacity = max(0.0, min(baseline.values()) - minimum)
         partial_now = min(amount - .01, capacity)
-        if intent["allows_partial_payment"] and partial_now > 0 and earliest:
-            add("partial_then_remainder", {self.as_of_date: partial_now, earliest: amount-partial_now})
+        if (intent["allows_partial_payment"] and partial_now > 0 and earliest
+                and earliest > self.as_of_date):
+            add("partial_then_remainder", [(self.as_of_date, partial_now),
+                                            (earliest, amount-partial_now)],
+                intended_total=amount)
         terms = intent.get("installment_terms")
         if terms:
             fee = float(terms["fee"] or 0)
             count = int(terms["count"])
             interval_days = int(terms.get("interval_days") or 30)
             completion = installment_completion_date(self.as_of_date, count, interval_days)
-            plan = {}
+            plan = []
             for idx in range(count):
                 day = (completion - timedelta(days=interval_days * (count - idx - 1))).isoformat()
-                plan[day] = (amount+fee)/count
-            add("installments", plan, amount+fee)
+                plan.append((day, (amount+fee)/count))
+            add("installments", plan, amount+fee, intended_total=amount+fee)
         if earliest and earliest > self.as_of_date:
-            add("wait", {earliest: amount})
+            add("wait", [(earliest, amount)], intended_total=amount)
         # Preserve all requested alternatives even when their projected schedule is unsafe.
         safe = sorted((x for x in scenarios if x["safe"]), key=lambda x: (
             (x["dates"] and max(x["dates"]) > deadline) if deadline else False,
             max(x["dates"]) if not deadline else "", x["total_cost"]))
         unsafe = [x for x in scenarios if not x["safe"]]
         ranked = safe + sorted(unsafe, key=lambda x: (x["total_cost"], max(x["dates"])))
-        chosen = ranked[0] if ranked else None
+        chosen = safe[0] if safe else None
         evidence = decision["evidence"]
         low_day = min(evidence["balances"], key=evidence["balances"].get)
         exp = evidence.get("explanation_evidence", {})
@@ -561,16 +581,40 @@ class Assistant:
                               | set(map(str, evidence.get("retrieved_message_ids", [])))
                               | set(map(str, breakdown.get("pending_ignored", []))))
         monthly_incomes = exp.get("income_counted", [])
+        engine_status = str(decision["row"].get("affordability_status", ""))
+        engine_method = str(decision["row"].get("recommended_payment_method", ""))
+        method_options = {"full_payment": "pay_in_full_now", "partial_payment": "partial_then_remainder",
+                          "installments": "installments", "wait": "wait"}
+        engine_option_type = method_options.get(engine_method)
+        engine_scenario = next((item for item in safe if item["type"] == engine_option_type), None)
+        mismatch = ((engine_status == "not_affordable" and bool(safe))
+                    or (engine_status != "not_affordable" and not engine_scenario)
+                    or (engine_status != "not_affordable" and chosen is not None
+                        and engine_scenario is not None and chosen["type"] != engine_scenario["type"]))
+        if mismatch:
+            fp.event.error(session_id=self.session_id, agent_id="assistant",
+                           error_type="AdvisorEngineMismatch",
+                           message=(f"Engine status/method {engine_status}/{engine_method} disagreed "
+                                    f"with safe advisor scenarios {[item['type'] for item in safe]}; following the engine."))
+        if engine_status == "not_affordable":
+            chosen = None
+        elif engine_scenario is not None:
+            chosen = engine_scenario
+        else:
+            chosen = None
         income_stream_classes = [{"series_key": str(key[2]), "class": str(value.get("class", "unknown")),
                                   "reason": str(value.get("reason", ""))}
                                  for key, value in classes.items() if len(key) >= 3
                                  and str(key[0]) == self.user_id and str(key[1]) == self.as_of_date]
-        return {"headline": (f"Recommended: {chosen['type'].replace('_', ' ')}" if chosen else "No safe option found"),
+        headline = (f"Recommended: {chosen['type'].replace('_', ' ')}" if chosen else
+                    "NOT RECOMMENDED: no option keeps your balance above the minimum")
+        return {"headline": headline,
                 "recommended_option": chosen, "ranked_options": ranked,
                 "income_stream_classes": income_stream_classes,
                 "situation": {"current_balance": profile.current_available_balance,
                               "minimum_balance": minimum, "lowest_projected_balance": evidence["balances"][low_day],
                               "lowest_projected_date": low_day,
+                              "earliest_date_for_full_payment": earliest,
                               "monthly_income_counted": monthly_incomes,
                               "monthly_income_total": sum(float(item.get("amount", 0)) for item in monthly_incomes),
                               "committed_outflows_next_30_days": sum(-float(v.get("amount", 0)) for d, vals in breakdown.get("flows_by_day", {}).items() if d <= (start+timedelta(days=30)).isoformat() for v in vals if float(v.get("amount",0)) < 0),

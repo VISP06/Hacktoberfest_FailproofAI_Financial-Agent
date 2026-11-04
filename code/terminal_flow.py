@@ -13,7 +13,10 @@ from plan_dates import installment_completion_date
 
 _CURRENCIES = {"INR": "INR", "USD": "USD", "EUR": "EUR", "ZAR": "ZAR", "IDR": "IDR"}
 _SYMBOLS = {"₹": "INR", "$": "USD", "€": "EUR", "R": "ZAR"}
-_AMOUNT_RE = re.compile(r"(?<![\w.])(?:\d+(?:[, ]\d{3})+|\d+(?:\.\d+)?)(?![\d.])", re.I)
+_AMOUNT_RE = re.compile(
+    r"(?<![\w.])(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|"
+    r"\d{1,3}(?: \d{3})+|\d+(?:\.\d+)?)(?![\d,])", re.I
+)
 BANNER = ("Glacier: deterministic payment planning. Try: ‘Can I afford ₹12,000?’, ‘Laptop in 3 installments’, "
           "‘What if I wait?’ Commands: /help, /users, /why, /situation, /date, /user, /reset, /export.")
 
@@ -31,16 +34,34 @@ def parse_amount(text):
         if found:
             currency = code
             break
-    if re.search(r"(?<!\w)rs\.?\s*\d|\brupees?\b", value, re.I):
+    if re.search(r"(?<!\w)rs\.?(?!\w)|\brupees?\b", value, re.I):
         currency = "INR"
-    for match in _AMOUNT_RE.finditer(value):
+    amount_text = re.sub(r"\b20\d{2}-\d{2}-\d{2}\b", " ", value)
+    amount_text = re.sub(
+        r"\b\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+        r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+        r"(?:\s+20\d{2})?\b", " ", amount_text, flags=re.I,
+    )
+    amount_text = re.sub(r"\bwithin\s+\d+\s+days\b", " ", amount_text, flags=re.I)
+    matches = list(_AMOUNT_RE.finditer(amount_text))
+    # Prefer explicit monetary notation and grouped/decimal amounts over stray
+    # dates, installment counts, or other plain integers in a question.
+    def priority(match):
+        raw = match.group(0)
+        prefix = amount_text[max(0, match.start() - 8):match.start()]
+        suffix = amount_text[match.end():match.end() + 8]
+        explicit = (bool(re.search(r"(?:INR|USD|EUR|ZAR|IDR|Rs\.?|₹|\$|€|R)\s*$", prefix, re.I))
+                    or bool(re.match(r"\s*(?:INR|USD|EUR|ZAR|IDR)\b", suffix, re.I)))
+        marked = bool(re.search(r"[, ]|\.", raw)) or bool(re.match(r"\s*(?:k|m|million|lakh|lakhs|crore|crores)\b", suffix, re.I))
+        return (0 if explicit else 1 if marked else 2, match.start())
+    for match in sorted(matches, key=priority):
         raw = match.group(0).replace(",", "").replace(" ", "")
         try:
             amount = float(raw)
         except ValueError:
             continue
-        suffix = value[match.end():]
-        prefix = value[:match.start()]
+        suffix = amount_text[match.end():]
+        prefix = amount_text[:match.start()]
         unit = re.match(r"\s*(k|m|million|lakh|lakhs|crore|crores)(?![a-z])", suffix, re.I)
         if unit:
             u = unit.group(1).lower()
@@ -287,7 +308,11 @@ class TerminalSession:
         currency = self.form["currency"]
         options = result.get("ranked_options", [])
         chosen = result.get("recommended_option")
-        if chosen is None: verdict = "NOT RECOMMENDED"
+        if chosen is not None and not chosen.get("safe", False):
+            chosen = None
+        not_affordable = str(result.get("decision", {}).get("affordability_status")) == "not_affordable"
+        if not_affordable or chosen is None:
+            verdict = "NOT RECOMMENDED: no option keeps your balance above the minimum"
         elif chosen["type"] == "pay_in_full_now": verdict = "PAY IN FULL TODAY"
         elif chosen["type"] == "installments": verdict = f"PAY IN {self.form.get('installment_count', 3)} INSTALLMENTS"
         elif chosen["type"] == "partial_then_remainder": verdict = f"PAY {money(next(iter(chosen['amounts'].values())), currency)} NOW AND THE REST ON {list(chosen['amounts'])[-1]}"
@@ -306,10 +331,16 @@ class TerminalSession:
         levels = "▁▂▃▄▅▆▇█"
         spark = "" if not vals else "".join(levels[round((v-min(vals))/(max(vals)-min(vals))*7)] if max(vals) != min(vals) else "▄" for v in vals)
         minimum = situation["minimum_balance"]
-        rows = ["OPTION                 WHEN                 TOTAL COST       LOWEST BALANCE   MEETS DEADLINE"]
+        rows = ["OPTION                 WHEN                 TOTAL COST       LOWEST BALANCE   MEETS DEADLINE   SAFE"]
         for option in options:
-            rows.append(f"{option['type'].replace('_',' '):22} {', '.join(option['dates']):20} {money(option['total_cost'],currency):16} {money(option['lowest_projected_balance'],currency):16} {option['meets_deadline']}")
-        alts = [f"Best other options: {', '.join(x['type'].replace('_',' ') for x in options[1:]) or 'none' }.",
+            safe_mark = "✓" if option.get("safe") else "✗"
+            safety = "SAFE" if option.get("safe") else (
+                f"UNSAFE (drops to {money(option['lowest_projected_balance'],currency)} on "
+                f"{option['lowest_projected_date']}, {money(max(0, minimum-option['lowest_projected_balance']),currency)} below the minimum)"
+            )
+            rows.append(f"{option['type'].replace('_',' '):22} {', '.join(option['dates']):20} {money(option['total_cost'],currency):16} {money(option['lowest_projected_balance'],currency):16} {option['meets_deadline']}   {safe_mark} {safety}")
+        other_safe = [x["type"].replace("_", " ") for x in options if x.get("safe") and x is not chosen]
+        alts = [f"Best other safe options: {', '.join(other_safe) or 'none'}.",
                 f"Earliest safe date to wait for: {situation.get('earliest_date_for_full_payment') or 'not available'}.",
                 f"Amount safe to pay today: {money(result['decision'].get('amount_safe_to_pay', 0),currency)}.",
                 f"Spending changes that would free cash: {result['decision'].get('spending_changes_needed', 'none')}."]
