@@ -321,11 +321,10 @@ class TerminalSession:
         situation = result["situation"]
         why = (f"The current balance is {money(situation['current_balance'], currency)}, and the minimum to keep is {money(situation['minimum_balance'], currency)}. "
                f"The lowest projected balance is {money(situation['lowest_projected_balance'], currency)} on {situation['lowest_projected_date']}. "
-               f"Monthly counted income is {money(situation['monthly_income_total'], currency)}; only validated recurring income is counted. "
-                f"Pending items considered or ignored: {', '.join(map(str, result.get('evidence_ids', []))) or 'none' }.")
+               f"Monthly counted income is {money(situation['monthly_income_total'], currency)}; only validated recurring income is counted.")
         pending = situation.get("pending_items_considered_or_ignored", {})
-        why += (f" Pending items considered: {', '.join(map(str, pending.get('considered', []))) or 'none'}; "
-                f"ignored: {', '.join(map(str, pending.get('ignored', []))) or 'none'}.")
+        why += (f" Pending items: considered {', '.join(map(str, pending.get('considered', []))) or 'none'}; "
+                f"ignored {', '.join(map(str, pending.get('ignored', []))) or 'none'}.")
         balances = result.get("evidence", {}).get("balances", {})
         vals = list(balances.values())
         levels = "▁▂▃▄▅▆▇█"
@@ -344,7 +343,21 @@ class TerminalSession:
                 f"Earliest safe date to wait for: {situation.get('earliest_date_for_full_payment') or 'not available'}.",
                 f"Amount safe to pay today: {money(result['decision'].get('amount_safe_to_pay', 0),currency)}.",
                 f"Spending changes that would free cash: {result['decision'].get('spending_changes_needed', 'none')}."]
-        steps = [f"Confirm the selected plan for {money(self.form['amount'],currency)}.", "Keep the minimum balance available.", "Recheck the forecast before making the payment."]
+        if verdict.startswith("NOT RECOMMENDED"):
+            steps = ["Do not make this payment now"]
+            safe_today = float(result["decision"].get("amount_safe_to_pay", 0) or 0)
+            if safe_today > 0:
+                steps.append(f"Amount safe to pay today: {money(safe_today, currency)}.")
+            earliest = situation.get("earliest_date_for_full_payment")
+            if earliest:
+                steps.append(f"Earliest safe date: {earliest}.")
+            spending_changes = result["decision"].get("spending_changes_needed", "none")
+            steps.append(
+                "This answer could change if income resumes, you choose a smaller amount, "
+                f"or spending changes ({spending_changes})."
+            )
+        else:
+            steps = [f"Confirm the selected plan for {money(self.form['amount'],currency)}.", "Keep the minimum balance available.", "Recheck the forecast before making the payment."]
         return (f"╭─ {verdict} ─╮\nWHY\n{why}\n\nNUMBERS\n90-day balance: {spark}\nMinimum-balance level: {money(minimum,currency)}\n\nOPTIONS\n" + "\n".join(rows) + "\n\nALTERNATIVES\n" + "\n".join("• "+s for s in alts) + "\n\nNEXT STEPS\n" + "\n".join("• "+s for s in steps))
 
     def handle(self, line):

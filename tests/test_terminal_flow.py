@@ -75,6 +75,32 @@ def test_report_amounts_are_engine_backed():
             assert str(amount) in evidence_text
 
 
+def test_report_verdict_controls_steps_and_pending_items_are_reported_once():
+    session = TerminalSession("user_07", "2025-11-04")
+    session.handle("Laptop costs Rs. 12k no deadline just advise")
+    result = session.report
+    rendered = session.render_report(result)
+    if result["recommended_option"]:
+        assert "Confirm the selected plan" in rendered
+        assert "Do not make this payment now" not in rendered
+
+    result["recommended_option"] = None
+    result["decision"]["affordability_status"] = "not_affordable"
+    result["decision"]["amount_safe_to_pay"] = 2500
+    result["decision"]["spending_changes_needed"] = "reduce dining out"
+    report = session.render_report(result)
+    next_steps = report.split("NEXT STEPS\n", 1)[1]
+    assert "NOT RECOMMENDED" in report
+    assert "Do not make this payment now" in next_steps
+    assert "Amount safe to pay today: INR 2,500.00" in next_steps
+    assert "Earliest safe date:" in next_steps
+    assert "income resumes" in next_steps and "smaller amount" in next_steps
+    assert "reduce dining out" in next_steps
+    assert report.count("Pending items:") == 1
+    assert "Pending items: considered " in report
+    assert "; ignored " in report
+
+
 def test_deadline_filters_installments_and_conflicting_deadline_reasks():
     # End-of-month deadline is earlier than the shortest available 3-payment plan.
     session, blocks = start("Laptop 12k end of this month")
