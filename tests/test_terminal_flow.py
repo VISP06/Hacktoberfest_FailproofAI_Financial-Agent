@@ -158,3 +158,38 @@ def test_missing_direct_currency_rate_has_account_specific_message(monkeypatch):
     message = session._make_report()[0]["text"]
     assert message == ("Your account is in INR and I have no USD to INR rate. Type the amount in "
                        "INR, or switch accounts with /user.")
+
+
+@pytest.mark.parametrize("followup", ["half now", "pay 40% now", "pay 5k now", "wait a month", "a month later",
+                                       "wait 2 weeks", "6 installments", "by 2025-12-01", "actually 20k", "make it 20k"])
+def test_report_followups_recompute_and_compare(followup):
+    session = TerminalSession("user_07", "2025-11-04")
+    session.handle("Laptop 12k no deadline just advise")
+    blocks = session.handle(followup)
+    assert any(block["text"].startswith("WHAT CHANGED") for block in blocks)
+    assert any(block["kind"] == "report" for block in blocks)
+    assert session.latest_result is session.report
+
+
+@pytest.mark.parametrize("line", ["", "???", "banana"])
+def test_unrecognized_or_empty_report_followup_never_reprints_report(line):
+    session = TerminalSession("user_07", "2025-11-04")
+    session.handle("Laptop 12k no deadline just advise")
+    blocks = session.handle(line)
+    assert not any(block["kind"] == "report" for block in blocks)
+    if line:
+        assert "I didn't understand that." in blocks[0]["text"]
+
+
+@pytest.mark.parametrize(("command", "expected"), [("/user", "Usage: /user <id>"), ("/date", "Usage: /user <id>")])
+def test_user_date_usage(command, expected):
+    session = TerminalSession("user_07", "2025-11-04")
+    assert session.handle(command)[0]["text"] == expected
+
+
+def test_user_resets_to_latest_event_date_and_date_error_has_range():
+    session = TerminalSession("user_07", "2025-11-04")
+    response = session.handle("/user user_05")[0]["text"]
+    assert "Data range:" in response and session.as_of_date in response
+    error = session.handle("/date 1900-01-01")[0]["text"]
+    assert "Allowed range" in error and "through" in error

@@ -1,6 +1,7 @@
 """Deterministic conversational terminal flow; deliberately has no Streamlit dependency."""
 
 import datetime as dt
+import calendar
 import os
 import re
 
@@ -434,44 +435,128 @@ class TerminalSession:
         elif command == "/export": self._block("text", self.report or "No report to export yet.")
         elif command == "/situation":
             s = self.assistant.situation(); c = self.assistant.engine.get_user_home_currency(self.user_id)
-            self._block("text", f"Available {money(s['current_balance'],c)}; minimum {money(s['minimum_balance'],c)}; as of {self.as_of_date}.")
+            outflows = s.get("outflows_next_30_days", s.get("outflows_next_30", 0))
+            outflows90 = s.get("outflows_next_90_days", s.get("outflows_next_90", 0))
+            pending = s.get("pending_items", s.get("pending_items_considered_or_ignored", {}))
+            self._block("text", (f"Balance: {money(s['current_balance'],c)}; minimum: {money(s['minimum_balance'],c)}; "
+                                  f"lowest projected balance: {money(s['lowest_projected_balance'],c)} on {s.get('lowest_projected_date', 'n/a')}; "
+                                  f"income counted: {money(s.get('monthly_income_total', 0),c)}; "
+                                  f"outflows next 30 days: {money(outflows,c)}; next 90 days: {money(outflows90,c)}; "
+                                  f"pending items: {pending}; as of {self.as_of_date}."))
         elif command == "/reset":
             self.phase = "ready"; self.form = {}; self.questions = []; self.report = None
             self._block("text", "Session reset. What are you considering?")
+        elif command == "/user": self._block("text", "Usage: /user <id>")
         elif command.startswith("/user "):
             new_user = text.split(maxsplit=1)[1]
             if new_user not in self.assistant.engine.profiles.index.astype(str): self._block("error", f"Unknown user id: {new_user}")
             else:
-                self.__init__(new_user, self.as_of_date, self.dataset_dir)
-                self._block("text", f"User set to {new_user}.")
+                self.__init__(new_user, None, self.dataset_dir)
+                dates = sorted(self.assistant.engine.events[self.assistant.engine.events.user_id.astype(str).eq(new_user)].event_date.dropna().astype(str))
+                self._block("text", f"User set to {new_user}. Data range: {dates[0][:10]} through {dates[-1][:10]}; as of {self.as_of_date}.")
+        elif command == "/date": self._block("text", "Usage: /user <id>")
         elif command.startswith("/date "):
             value = text.split(maxsplit=1)[1]
+            all_dates = self.assistant.engine.events[self.assistant.engine.events.user_id.astype(str).eq(self.user_id)].event_date.dropna().astype(str)
+            lo, hi = sorted(map(str, all_dates))[0][:10], sorted(map(str, all_dates))[-1][:10]
             try:
                 date = dt.date.fromisoformat(value)
-                all_dates = self.assistant.engine.events[self.assistant.engine.events.user_id.astype(str).eq(self.user_id)].event_date.dropna().astype(str)
-                lo, hi = sorted(map(str, all_dates))[0], sorted(map(str, all_dates))[-1]
                 if not lo <= value <= hi: raise ValueError
                 self.__init__(self.user_id, date.isoformat(), self.dataset_dir)
                 self._block("text", f"As-of date set to {value}.")
-            except Exception: self._block("error", "Invalid date or date outside this user's data range.")
+            except Exception: self._block("error", f"Invalid date. Allowed range for {self.user_id}: {lo} through {hi}.")
         elif self.phase == "intake" and command == "/skip":
             self.question_index = len(self.questions)
             self._make_report()
-        elif self.phase == "intake": self._accept_answer(text)
+        elif self.phase == "intake":
+            new_amount, _ = parse_amount(text)
+            is_answer = text in {"", "1", "2", "3", "4"} or (self.question_index < len(self.questions) and self.questions[self.question_index] == "fee" and bool(re.fullmatch(r"\d+(?:\.\d+)?", text)))
+            if new_amount is not None and not is_answer:
+                self._block("text", "Starting a new request and resetting the current intake.")
+                self.phase = "ready"
+                self.form = {}; self.questions = []; self.question_index = 0
+                self._start(text)
+            else:
+                self._accept_answer(text)
         elif self.phase == "reported":
-            if re.search(r"\bhalf\b", text, re.I):
-                self.form["allow_partial"] = True
-                self._make_report()
-            elif re.search(r"\bwhy\b|\bnot now\b", text, re.I) and self.report:
+            if re.search(r"\bwhy\b|\bnot now\b", text, re.I) and self.report:
                 report_text = self.render_report(self.report)
                 why = report_text.split("WHY\n", 1)[-1].split("\n\nNUMBERS", 1)[0]
                 self._block("text", why)
-            elif self.report:
-                report_text = self.render_report(self.report)
-                self._block("text", report_text.split("\n\nNUMBERS", 1)[0])
+            else:
+                previous = self._comparison(self.report) if self.report else None
+                changed = self._apply_followup(text)
+                if changed:
+                    blocks = self._make_report()
+                    if self.report and previous:
+                        comparison = self._block("text", "WHAT CHANGED\n" + self._comparison(self.report, previous))
+                        self.last_blocks.remove(comparison)
+                        self.last_blocks.insert(0, comparison)
+                elif text:
+                    self._block("text", "I didn't understand that. Try: 'pay half now', 'wait a month', '6 installments', 'actually 20k', or /help.")
         else:
             self._start(text)
         return self.last_blocks
+
+    def _comparison(self, result, previous=None):
+        result = result or {}
+        current = {
+            "verdict": self.report_data(result).get("verdict", "n/a"),
+            "amount safe today": money(result.get("decision", {}).get("amount_safe_to_pay", 0), self.form.get("currency", "INR")),
+            "lowest balance": money(result.get("situation", {}).get("lowest_projected_balance", 0), self.form.get("currency", "INR")),
+        }
+        if previous is None:
+            return "\n".join(f"{key}: {value}" for key, value in current.items())
+        old = {
+            "verdict": self._previous_verdict,
+            "amount safe today": self._previous_safe,
+            "lowest balance": self._previous_low,
+        }
+        return "\n".join(f"{key}: {old[key]} → {value}" for key, value in current.items())
+
+    def _apply_followup(self, text):
+        value = str(text or "").strip()
+        if not value:
+            return False
+        low = value.lower()
+        # Preserve the old report values before updating the shared form.
+        self._previous_verdict = self.report_data(self.report).get("verdict", "n/a")
+        self._previous_safe = money(self.report.get("decision", {}).get("amount_safe_to_pay", 0), self.form.get("currency", "INR"))
+        self._previous_low = money(self.report.get("situation", {}).get("lowest_projected_balance", 0), self.form.get("currency", "INR"))
+        if "half" in low or re.search(r"\bpay\s+\d+(?:\.\d+)?\s*%\s+now\b", low) or re.search(r"\bpay\s+[\d,.]+\s*(?:k|thousand)?\s+now\b", low):
+            self.form["allow_partial"] = True
+            self.form["allow_installments"] = False
+            return True
+        count = re.search(r"\b(3|6|12)\s+installments?\b", low)
+        if count:
+            self.form.update(allow_installments=True, installment_count=int(count.group(1)), allow_partial=False)
+            return True
+        if re.search(r"\bwait\b|\ba month later\b", low):
+            date = dt.date.fromisoformat(self.as_of_date)
+            amount = re.search(r"\b(\d+)\s*(days?|weeks?|months?)\b", low)
+            if amount:
+                n, unit = int(amount.group(1)), amount.group(2)
+                if unit.startswith("day"): date += dt.timedelta(days=n)
+                elif unit.startswith("week"): date += dt.timedelta(weeks=n)
+                else:
+                    month = date.month - 1 + n
+                    date = date.replace(year=date.year + month // 12, month=month % 12 + 1, day=min(date.day, calendar.monthrange(date.year + month // 12, month % 12 + 1)[1]))
+            elif "month" in low: date = date.replace(year=date.year + (date.month == 12), month=date.month % 12 + 1, day=min(date.day, calendar.monthrange(date.year + (date.month == 12), date.month % 12 + 1)[1]))
+            else: return False
+            self.form["pay_by_date"] = date.isoformat()
+            self.form["allow_partial"] = False
+            self.form["allow_installments"] = False
+            return True
+        iso = re.search(r"\bby\s+(20\d\d-\d\d-\d\d)\b", low)
+        if iso:
+            self.form["pay_by_date"] = iso.group(1)
+            return True
+        new_amount, currency = parse_amount(value)
+        if new_amount is not None and re.search(r"\b(actually|make it)\b", low):
+            self.form["amount"] = new_amount
+            if currency: self.form["currency"] = currency
+            return True
+        return False
 
     def _why_text(self):
         result = self.latest_result
