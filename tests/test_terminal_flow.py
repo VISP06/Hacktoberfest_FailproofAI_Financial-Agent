@@ -193,3 +193,68 @@ def test_user_resets_to_latest_event_date_and_date_error_has_range():
     assert "Data range:" in response and session.as_of_date in response
     error = session.handle("/date 1900-01-01")[0]["text"]
     assert "Allowed range" in error and "through" in error
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("12k", 12_000), ("12K", 12_000), ("1.5m", 1_500_000), ("12,000", 12_000),
+    ("12 000", 12_000), ("1,00,000", 100_000), ("₹1,00,000", 100_000),
+    ("1.2 lakh", 120_000), ("2 cr", 20_000_000), ("1.5 mn", 1_500_000),
+    ("3 crore", 30_000_000), ("Rs. 12,000", 12_000), ("$100", 100),
+    ("-500", None), ("15%", None), ("0", None), ("twelve thousand", None),
+])
+def test_extended_amount_parsing_table(text, expected):
+    assert parse_amount(text)[0] == expected
+
+
+@pytest.mark.parametrize(("text", "expected"), [("12k and 5k", [12_000, 5_000]),
+                                                    ("10,00,00,000", [100_000_000]),
+                                                    ("1.5 bn", [1_500_000_000])])
+def test_amount_candidates_table(text, expected):
+    from terminal_flow import _amount_candidates
+    assert _amount_candidates(text) == expected
+
+
+def test_ambiguous_and_negative_amount_messages_and_large_amount_warning():
+    session = TerminalSession("user_07", "2025-11-04")
+    assert "Which amount did you mean: INR 12,000.00 or INR 5,000.00?" in session.handle("12k and 5k")[0]["text"]
+    assert session.handle("12k")[0]["kind"] == "prompt"
+    assert "positive" in session.handle("-500")[0]["text"]
+    large_session = TerminalSession("user_07", "2025-11-04")
+    large_session.handle("1500 bn no deadline just advise")
+    assert any("above 1,000,000,000,000" in block["text"] for block in large_session.last_blocks)
+
+
+@pytest.mark.parametrize("answer", ["2025-11-03", "in 2 days", "in 2 weeks", "2026-02-10"])
+def test_typed_deadline_validation_table(answer):
+    session, _ = start("Laptop 12k")
+    session.handle("4")
+    blocks = session.handle(answer)
+    if answer == "2025-11-03":
+        assert session.form.get("pay_by_date") is None
+        assert any("on or after" in block["text"] for block in session.last_blocks)
+    elif answer == "2026-02-10":
+        assert session.form.get("pay_by_date") is None
+        assert any("beyond the 90-day forecast" in block["text"] for block in session.last_blocks)
+    else:
+        assert session.form.get("pay_by_date") in {"2025-11-06", "2025-11-18"}
+
+
+@pytest.mark.parametrize(("fee", "expected", "asks_again"), [("0", 0, False), ("30", 30, False),
+                                                                ("31", 0, True), ("-1", 0, True)])
+def test_installment_fee_range_and_retry_table(fee, expected, asks_again):
+    session, _ = start("Laptop 12k no deadline")
+    session.handle("1")  # no partial
+    session.handle("2")  # 3 installments
+    if asks_again:
+        assert session.handle(fee)[0]["kind"] == "prompt"
+        session.handle(fee)
+    else:
+        session.handle(fee)
+    assert session.form["installment_fee_pct"] == expected
+
+
+def test_deadline_column_is_textual_yes_no_na():
+    session = TerminalSession("user_07", "2025-11-04")
+    session.handle("Laptop 12k no deadline just advise")
+    values = [row["meets_deadline"] for row in session.report_data(session.report)["options"]]
+    assert all(value in {"yes", "no", "n/a"} for value in values)

@@ -15,7 +15,8 @@ from plan_dates import installment_completion_date
 _CURRENCIES = {"INR": "INR", "USD": "USD", "EUR": "EUR", "ZAR": "ZAR", "IDR": "IDR"}
 _SYMBOLS = {"₹": "INR", "$": "USD", "€": "EUR", "R": "ZAR"}
 _AMOUNT_RE = re.compile(
-    r"(?<![\w.])(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|"
+    r"(?<![\w.])(?:\d{1,3}(?:,\d{2})*,\d{3}(?:\.\d+)?|"
+    r"\d{1,3}(?:,\d{2})+,\d{3}(?:\.\d+)?|\d{1,3}(?:,\d{3})+(?:\.\d+)?|"
     r"\d{1,3}(?: \d{3})+|\d+(?:\.\d+)?)(?![\d,])", re.I
 )
 BANNER = ("Glacier checks whether a payment fits your next 90 days: your balance, income, bills and pending items, "
@@ -44,7 +45,9 @@ def parse_amount(text):
         r"(?:\s+20\d{2})?\b", " ", amount_text, flags=re.I,
     )
     amount_text = re.sub(r"\bwithin\s+\d+\s+days\b", " ", amount_text, flags=re.I)
-    matches = list(_AMOUNT_RE.finditer(amount_text))
+    matches = [m for m in _AMOUNT_RE.finditer(amount_text)
+               if not re.match(r"\s*%", amount_text[m.end():])
+               and not re.search(r"-\s*$", amount_text[:m.start()])]
     # Prefer explicit monetary notation and grouped/decimal amounts over stray
     # dates, installment counts, or other plain integers in a question.
     def priority(match):
@@ -53,7 +56,7 @@ def parse_amount(text):
         suffix = amount_text[match.end():match.end() + 8]
         explicit = (bool(re.search(r"(?:INR|USD|EUR|ZAR|IDR|Rs\.?|₹|\$|€|R)\s*$", prefix, re.I))
                     or bool(re.match(r"\s*(?:INR|USD|EUR|ZAR|IDR)\b", suffix, re.I)))
-        marked = bool(re.search(r"[, ]|\.", raw)) or bool(re.match(r"\s*(?:k|m|million|lakh|lakhs|crore|crores)\b", suffix, re.I))
+        marked = bool(re.search(r"[, ]|\.", raw)) or bool(re.match(r"\s*(?:k|m|mn|mm|b|bn|million|lakh|lakhs|lac|lacs|cr|crore|crores)\b", suffix, re.I))
         return (0 if explicit else 1 if marked else 2, match.start())
     for match in sorted(matches, key=priority):
         raw = match.group(0).replace(",", "").replace(" ", "")
@@ -63,15 +66,37 @@ def parse_amount(text):
             continue
         suffix = amount_text[match.end():]
         prefix = amount_text[:match.start()]
-        unit = re.match(r"\s*(k|m|million|lakh|lakhs|crore|crores)(?![a-z])", suffix, re.I)
+        unit = re.match(r"\s*(k|m|mn|mm|b|bn|million|lakh|lakhs|lac|lacs|cr|crore|crores)(?![a-z])", suffix, re.I)
         if unit:
             u = unit.group(1).lower()
-            amount *= 1_000 if u == "k" else 1_000_000 if u in {"m", "million"} else 100_000 if u in {"lakh", "lakhs"} else 10_000_000
+            amount *= (1_000 if u == "k" else 1_000_000 if u in {"m", "mn", "mm", "million"}
+                       else 1_000_000_000 if u in {"b", "bn"}
+                       else 100_000 if u in {"lakh", "lakhs", "lac", "lacs"} else 10_000_000)
         elif re.search(r"(?:\d)\s*$", prefix) and " " in prefix[-2:]:
             continue
         if amount > 0:
             return amount, currency
     return None, currency
+
+
+def _amount_candidates(text):
+    """Extract distinct amounts so ambiguous requests can be clarified."""
+    value = str(text or "")
+    result = []
+    for match in _AMOUNT_RE.finditer(value):
+        if re.match(r"\s*%", value[match.end():]):
+            continue
+        prefix = value[max(0, match.start() - 8):match.start()]
+        suffix = value[match.end():match.end() + 12]
+        explicit = bool(re.search(r"(?:INR|USD|EUR|ZAR|IDR|Rs\.?|₹|\$|€|R)\s*$", prefix, re.I))
+        unit = bool(re.match(r"\s*(?:k|m|mn|mm|b|bn|lakh|lakhs|lac|lacs|cr|crore|crores)\b", suffix, re.I))
+        grouped = "," in match.group(0) or " " in match.group(0) or "." in match.group(0)
+        if not (explicit or unit or grouped):
+            continue
+        amount, _ = parse_amount(value[match.start():match.end() + 12])
+        if amount is not None and amount not in result:
+            result.append(amount)
+    return result
 
 
 class TerminalSession:
@@ -163,7 +188,20 @@ class TerminalSession:
 
     def _start(self, line):
         amount, currency = parse_amount(line)
+        candidates = _amount_candidates(line)
+        if len(candidates) > 1 and not hasattr(self, "_forced_amount"):
+            self.phase = "amount_clarification"
+            self._ambiguous_line = line
+            self._amount_choices = candidates
+            options = " or ".join(money(item, currency or self.assistant.engine.get_user_home_currency(self.user_id)) for item in candidates)
+            prompt = f"Which amount did you mean: {options}?"
+            return [self._block("prompt", prompt, {"question": prompt, "options": []})]
+        if hasattr(self, "_forced_amount"):
+            amount = self._forced_amount
+            del self._forced_amount
         if amount is None:
+            if re.search(r"(?<!\w)-\s*\d", line):
+                return [self._block("error", "Amounts must be positive; please enter a non-negative amount.")]
             text = "What amount are you considering?"
             return [self._block("prompt", text, {"question": text, "options": []})]
         self.request_text = line
@@ -185,7 +223,9 @@ class TerminalSession:
             self.form.update(allow_installments=True, installment_count=int(count.group(1)))
             fee_match = re.search(r"(\d+(?:\.\d+)?)\s*%", lowered)
             if fee_match:
-                self.form["installment_fee_pct"] = float(fee_match.group(1))
+                fee = float(fee_match.group(1))
+                if 0 <= fee <= 30: self.form["installment_fee_pct"] = fee
+                else: self.questions.append("fee")
             else:
                 self.questions.append("fee")
         elif "installment" not in lowered:
@@ -204,8 +244,11 @@ class TerminalSession:
         if self.form.get("pay_by_date") and not self._eligible_installment_counts() and "installments" in self.questions:
             self.questions.remove("installments")
             self._block("text", self._installment_deadline_message(self.form["pay_by_date"]))
+        if amount > 1_000_000_000_000:
+            self._block("text", "Warning: that amount is above 1,000,000,000,000; please check it carefully.")
         if self.questions:
-            return [self._prompt()]
+            prompt_block = self._prompt()
+            return self.last_blocks
         return self._make_report()
 
     def _parse_deadline(self, text):
@@ -215,10 +258,18 @@ class TerminalSession:
         iso = re.search(r"\b(20\d\d-\d\d-\d\d)\b", text)
         if iso:
             try:
-                self.form["pay_by_date"] = dt.date.fromisoformat(iso.group(1)).isoformat()
-                return True
+                parsed = dt.date.fromisoformat(iso.group(1))
+                today = dt.date.fromisoformat(self.as_of_date)
+                if parsed >= today:
+                    self.form["pay_by_date"] = parsed.isoformat()
+                    return True
             except ValueError:
                 pass
+        relative = re.search(r"\bin\s+(\d+)\s+(days?|weeks?)\b", text, re.I)
+        if relative:
+            n = int(relative.group(1)); unit = relative.group(2).lower()
+            self.form["pay_by_date"] = (dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=n * (7 if unit.startswith("week") else 1))).isoformat()
+            return True
         if re.search(r"\bwithin 14 days\b", text, re.I):
             self.form["pay_by_date"] = (dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=14)).isoformat()
             return True
@@ -238,11 +289,20 @@ class TerminalSession:
                    "deadline_conflict": {"1": None}, "partial": {"1": False, "2": True},
                    "installments": {"1": False, **installment_choices}}
         is_date = key == "date" or (key == "deadline_conflict" and value not in {"", "1"})
-        valid = value == "" or (key in choices and value in choices[key]) or (key == "fee" and bool(re.fullmatch(r"\d+(?:\.\d+)?", value)))
+        valid = value == "" or (key in choices and value in choices[key]) or (key == "fee" and bool(re.fullmatch(r"\d+(?:\.\d+)?", value)) and 0 <= float(value) <= 30)
+        relative_value = re.fullmatch(r"in\s+(\d+)\s+(days?|weeks?)", value, re.I)
+        if relative_value and key in {"date", "deadline_conflict"}:
+            n = int(relative_value.group(1)); unit = relative_value.group(2).lower()
+            parsed_relative = dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=n * (7 if unit.startswith("week") else 1))
+            value = parsed_relative.isoformat()
+            is_date = True
         if is_date and value:
             try:
                 parsed_date = dt.date.fromisoformat(value)
-                valid = True
+                as_of = dt.date.fromisoformat(self.as_of_date)
+                valid = parsed_date >= as_of
+                if valid and parsed_date > as_of + dt.timedelta(days=90):
+                    valid = True
                 if key == "deadline_conflict":
                     valid = parsed_date >= installment_completion_date(self.as_of_date, self.form["installment_count"])
             except ValueError:
@@ -250,6 +310,8 @@ class TerminalSession:
         if not valid:
             self.invalid_attempts += 1
             if self.invalid_attempts == 1:
+                if key in {"date", "deadline_conflict"}:
+                    self._block("text", f"Date must be on or after {self.as_of_date} and within the 90-day forecast.")
                 return [self._prompt()]
             value = ""
         self.invalid_attempts = 0
@@ -268,7 +330,12 @@ class TerminalSession:
             else:
                 self.form["pay_by_date"] = None
         elif key == "date":
-            self.form["pay_by_date"] = dt.date.fromisoformat(value).isoformat() if value else None
+            parsed = dt.date.fromisoformat(value) if value else None
+            if parsed and parsed > dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=90):
+                self.form["pay_by_date"] = None
+                self._block("text", "That date is beyond the 90-day forecast; I'll show the earliest safe date instead.")
+            else:
+                self.form["pay_by_date"] = parsed.isoformat() if parsed else None
         elif key == "partial": self.form["allow_partial"] = value == "2"
         elif key == "installments":
             self.form["allow_installments"] = bool(value and value != "1")
@@ -348,7 +415,7 @@ class TerminalSession:
                 f"{option['lowest_projected_date']}, {money(max(0, minimum-option['lowest_projected_balance']),currency)} below the minimum)"
             )
             meets = option.get("meets_deadline")
-            meets = "n/a" if meets is None else str(meets)
+            meets = "n/a" if meets is None else ("yes" if meets else "no")
             rows.append(f"{option['type'].replace('_',' '):22} {', '.join(option['dates']):20} {money(option['total_cost'],currency):16} {money(option['lowest_projected_balance'],currency):16} {meets}   {safe_mark} {'SAFE' if option.get('safe') else 'UNSAFE'}")
             if not option.get("safe"):
                 rows.append(f"                         Note: {safety}")
@@ -401,7 +468,7 @@ class TerminalSession:
             options.append({"name": item.get("type", "").replace("_", " "), "when": ", ".join(item.get("dates", [])),
                             "cost": money(item.get("total_cost", 0), self.form["currency"]),
                             "lowest": money(low, self.form["currency"]),
-                            "meets_deadline": "n/a" if item.get("meets_deadline") is None else str(item.get("meets_deadline")),
+                            "meets_deadline": "n/a" if item.get("meets_deadline") is None else ("yes" if item.get("meets_deadline") else "no"),
                             "safe": bool(item.get("safe")),
                             "note": "" if item.get("safe") else f"Unsafe: drops to {money(low, self.form['currency'])} on {item.get('lowest_projected_date')}"})
         sections = rendered.split("\n\nALTERNATIVES\n")
@@ -468,10 +535,20 @@ class TerminalSession:
         elif self.phase == "intake" and command == "/skip":
             self.question_index = len(self.questions)
             self._make_report()
+        elif self.phase == "amount_clarification":
+            amount, _ = parse_amount(text)
+            if amount not in getattr(self, "_amount_choices", []):
+                self._block("prompt", f"Which amount did you mean: {' or '.join(money(x, self.assistant.engine.get_user_home_currency(self.user_id)) for x in self._amount_choices)}?")
+            else:
+                self.phase = "ready"
+                self._forced_amount = amount
+                self._start(self._ambiguous_line)
         elif self.phase == "intake":
             new_amount, _ = parse_amount(text)
             is_answer = text in {"", "1", "2", "3", "4"} or (self.question_index < len(self.questions) and self.questions[self.question_index] == "fee" and bool(re.fullmatch(r"\d+(?:\.\d+)?", text)))
-            if new_amount is not None and not is_answer:
+            if (self.question_index >= len(self.questions) or self.questions[self.question_index] != "fee") and re.search(r"(?<!\w)-\s*\d", text):
+                self._block("error", "Amounts must be positive; please enter a non-negative amount.")
+            elif new_amount is not None and not is_answer:
                 self._block("text", "Starting a new request and resetting the current intake.")
                 self.phase = "ready"
                 self.form = {}; self.questions = []; self.question_index = 0
