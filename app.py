@@ -105,7 +105,9 @@ except Exception:
 st.markdown('<div class="status">' + "".join(f'<span class="chip"><span class="label">{esc(k)} </span>{esc(v)}</span>' for k, v in chips) + "</div>", unsafe_allow_html=True)
 
 output = st.session_state.get("terminal_output", [])
-for block in output:
+latest_prompt_index = max((i for i, item in enumerate(output) if item.get("kind") == "prompt"), default=-1)
+latest_report_index = max((i for i, item in enumerate(output) if item.get("kind") == "report"), default=-1)
+for block_index, block in enumerate(output):
     kind = block.get("kind", "text")
     if kind == "welcome":
         st.markdown(f'<div class="welcome"><p>{esc(block["plain_text"])}</p></div>', unsafe_allow_html=True)
@@ -121,21 +123,52 @@ for block in output:
         st.markdown('<div class="commands">/help　/users　/user ID　/date YYYY-MM-DD　/situation　/why　/reset　/export</div>', unsafe_allow_html=True)
     elif kind == "report":
         st.markdown(report_html(block), unsafe_allow_html=True)
+        if block_index == latest_report_index:
+            chip_lines = [("Pay half now", "pay half now"), ("Wait a month", "wait a month"),
+                          ("Use 3 installments", "3 installments"), ("Why not now?", "why not now"),
+                          ("/why", "/why")]
+            cols = st.columns(len(chip_lines) + 1)
+            for col, (label, value) in zip(cols, chip_lines):
+                if col.button(label, key=f"followup_{block_index}_{label}"):
+                    st.session_state.pending_line = value
+            report_text = block.get("plain_text", "")
+            cols[-1].download_button("Download report", report_text, file_name="glacier-report.txt",
+                                     mime="text/plain", key=f"download_report_{block_index}")
+    elif kind == "export":
+        st.download_button("Download report", block.get("plain_text", ""), file_name="glacier-report.txt",
+                           mime="text/plain", key=f"export_report_{block_index}")
     elif kind == "prompt":
         data = block.get("data", {})
-        chips_html = "".join(f'<span class="option-chip{" default" if option.get("default") else ""}">[{esc(option.get("key", ""))} {esc(option.get("label", ""))}{" · default" if option.get("default") else ""}]</span>' for option in data.get("options", []))
-        st.markdown(f'<div class="block"><div class="prompt-question">{esc(data.get("question", block["plain_text"]))}</div>{chips_html}</div>', unsafe_allow_html=True)
+        active = block_index == latest_prompt_index
+        st.markdown(f'<div class="block"><div class="prompt-question">{esc(data.get("question", block["plain_text"]))}</div></div>', unsafe_allow_html=True)
+        options = data.get("options", [])
+        if active and options:
+            columns = st.columns(min(4, len(options)))
+            for option_index, option in enumerate(options):
+                label = f"{option.get('key', '')} {option.get('label', '')}".strip()
+                col = columns[option_index % len(columns)]
+                if col.button(label, key=f"prompt_{block_index}_{option_index}", type="primary" if option.get("default") else "secondary"):
+                    st.session_state.pending_line = str(option.get("key", ""))
+        elif active and data.get("question", "").startswith("Type a date"):
+            low = dt.date.fromisoformat(session.as_of_date)
+            high = low + dt.timedelta(days=90)
+            picked = st.date_input("Choose a date", value=low, min_value=low, max_value=high, key=f"deadline_date_{block_index}")
+            if st.button("Confirm date", key=f"confirm_date_{block_index}"):
+                st.session_state.pending_line = picked.isoformat()
+        elif not active and options:
+            chips_html = "".join(f'<span class="option-chip{" default" if option.get("default") else ""}">[{esc(option.get("key", ""))} {esc(option.get("label", ""))}{" · default" if option.get("default") else ""}]</span>' for option in options)
+            st.markdown(f'<div>{chips_html}</div>', unsafe_allow_html=True)
     elif kind == "user_input":
         st.markdown(f'<div class="block user-input"><span class="prefix">❯ </span>{esc(block["plain_text"])}</div>', unsafe_allow_html=True)
     else:
         cls = "error" if kind == "error" else ""
         st.markdown(f'<div class="block {cls}">{esc(block["plain_text"])}</div>', unsafe_allow_html=True)
 
-reports = [x["plain_text"] for x in output if x.get("kind") == "report"]
-if reports:
-    st.download_button("/export", reports[-1], file_name="glacier-report.txt", mime="text/plain")
-
 line = st.chat_input("enter a request or command")
+pending = st.session_state.get("pending_line")
+if pending is not None:
+    line = pending
+    st.session_state.pending_line = None
 if line is not None:
     blocks = session.handle(line)
     output = list(output) + [{"kind": "user_input", "plain_text": line}] + blocks

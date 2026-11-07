@@ -183,7 +183,7 @@ class TerminalSession:
         if question == "deadline": choices = [("1", "none", True), ("2", "within 14 days", False), ("3", "end of this month", False), ("4", "type YYYY-MM-DD", False)]
         elif question == "partial": choices = [("1", "no", True), ("2", "yes", False)]
         elif question == "installments": choices = [(part.strip().split()[0], part.strip()[len(part.strip().split()[0]):].strip().strip("()"), idx == 0) for idx, part in enumerate(self._installment_options_text().split(","))]
-        else: choices = [("", "0%", True)]
+        else: choices = [(str(value), f"{value}%", value == 0) for value in (0, 1, 2, 5)]
         return self._block("prompt", text, {"question": text, "options": [{"key": k, "label": label, "default": default} for k, label, default in choices]})
 
     def _start(self, line):
@@ -499,7 +499,11 @@ class TerminalSession:
             lines = [f"{uid} · {row.home_currency} · {money(row.current_available_balance, row.home_currency)}"
                      for uid, row in profiles.head(8).iterrows()]
             self._block("text", "Accounts" + (f" in {requested}" if requested else "") + ":\n" + ("\n".join(lines) or "No matching accounts."))
-        elif command == "/export": self._block("text", self.report or "No report to export yet.")
+        elif command == "/export":
+            if self.report:
+                self._block("export", self.render_report(self.report))
+            else:
+                self._block("text", "No report to export yet. Ask an amount first.")
         elif command == "/situation":
             s = self.assistant.situation(); c = self.assistant.engine.get_user_home_currency(self.user_id)
             outflows = s.get("outflows_next_30_days", s.get("outflows_next_30", 0))

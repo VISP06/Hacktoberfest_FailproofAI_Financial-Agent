@@ -1,4 +1,5 @@
 import os
+import datetime as dt
 
 from streamlit.testing.v1 import AppTest
 
@@ -56,3 +57,50 @@ def test_finished_report_status_and_user_text_are_safe(monkeypatch):
     markdown = "\n".join(x.value for x in at.markdown)
     assert "&lt;script&gt;" in markdown
     assert "<script>alert(1)</script>" not in markdown
+
+
+def _offline(monkeypatch):
+    for key in ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_clicking_deadline_option_advances_intake(monkeypatch):
+    _offline(monkeypatch)
+    at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
+    at.chat_input[0].set_value("Laptop costs 12k").run()
+    next(button for button in at.button if button.label == "2 within 14 days").click().run()
+    assert "partial payment" in "\n".join(x.value for x in at.markdown)
+
+
+def test_date_picker_confirm_path(monkeypatch):
+    _offline(monkeypatch)
+    at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
+    at.chat_input[0].set_value("Laptop costs 12k").run()
+    next(button for button in at.button if button.label == "4 type YYYY-MM-DD").click().run()
+    assert len(at.date_input) == 1
+    at.date_input[0].set_value(dt.date(2025, 11, 20))
+    next(button for button in at.button if button.label == "Confirm date").click().run()
+    assert not at.exception
+    assert "partial payment" in "\n".join(x.value for x in at.markdown)
+
+
+def test_report_followup_chip_recomputes_report(monkeypatch):
+    _offline(monkeypatch)
+    at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
+    at.chat_input[0].set_value("Laptop costs 12k no deadline just advise").run()
+    assert any(button.label == "Pay half now" for button in at.button)
+    next(button for button in at.button if button.label == "Pay half now").click().run()
+    assert not at.exception
+    rendered = "\n".join(x.value for x in at.markdown)
+    assert "WHAT CHANGED" in rendered
+    assert "Download report" in [button.label for button in at.button] or len(at.get("download_button")) > 0
+
+
+def test_export_command_has_download_and_helpful_empty_state(monkeypatch):
+    _offline(monkeypatch)
+    at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
+    at.chat_input[0].set_value("/export").run()
+    assert "No report to export yet" in "\n".join(x.value for x in at.markdown)
+    at.chat_input[0].set_value("Laptop costs 12k no deadline just advise").run()
+    at.chat_input[0].set_value("/export").run()
+    assert len(at.get("download_button")) >= 2
