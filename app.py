@@ -33,6 +33,7 @@ html,body,[data-testid="stAppViewContainer"]{background:linear-gradient(180deg,#
 .report{border:1px solid #1F4660;border-left:4px solid var(--status);border-radius:8px;background:#0D2233;padding:1rem 1.2rem;margin:.7rem 0;color:#D8F3FF;line-height:1.55;overflow-wrap:anywhere}.verdict{font-size:1.35rem;font-weight:700;color:var(--status);margin-bottom:.9rem}.section-title{color:#5CE1E6;font-size:.78rem;letter-spacing:.16em;font-weight:700;margin:1rem 0 .35rem}.report p{margin:.25rem 0}.spark{color:#5CE1E6;letter-spacing:.12em;font-size:1.1rem}.range{color:#7FA6BD;font-size:.78rem}.options-table{border-collapse:collapse;width:100%;font-family:inherit;font-size:.78rem}.options-table th{text-align:left;color:#7FA6BD;border-bottom:1px solid #31536b;padding:.35rem}.options-table td{padding:.35rem;border-bottom:1px solid #1a394e;vertical-align:top}.safe{color:#7CF5C0}.unsafe{color:#FF7A90}.unsafe-note{color:#FF7A90;padding:.1rem 0 .35rem 1rem;font-size:.76rem}.error{color:#FF7A90}
 div[data-testid="stChatInput"]{border:1px solid #1F4660;background:#0D2233;position:relative;padding-left:5.7rem}div[data-testid="stChatInput"]:before{content:'glacier ❯';position:absolute;left:1rem;top:.85rem;color:#5CE1E6;font-family:'JetBrains Mono',monospace;font-size:.85rem;pointer-events:none}div[data-testid="stChatInput"] textarea{font-family:'JetBrains Mono',monospace;color:#D8F3FF;caret-color:#5CE1E6;background:transparent}div[data-testid="stChatInput"] button{background:transparent!important;border:0!important;color:#5CE1E6!important;box-shadow:none!important}
 div.stButton>button{background:#10283a;color:#8CC8FF;border:1px solid #31536b;border-radius:999px;font-family:inherit;font-size:.78rem;padding:.25rem .65rem}div.stButton>button:hover{border-color:#5CE1E6;color:#5CE1E6}
+[class*="st-key-mcq_"]{max-width:540px;margin:.15rem 0 .6rem}[class*="st-key-mcq_"] button{justify-content:flex-start;text-align:left;border-radius:8px;background:#0D2233;border:1px solid #1F4660;color:#D8F3FF;padding:.55rem .9rem;font-size:.86rem}[class*="st-key-mcq_"] button:hover{border-color:#5CE1E6;background:#10304a;color:#D8F3FF}[class*="st-key-mcq_"] button:focus-visible{outline:2px solid #5CE1E6}[class*="st-key-mcq_"] button p{display:flex;gap:.55rem;align-items:center;margin:0}[class*="st-key-mcq_"] button[kind="primary"]{border-color:#2c6f7a}
 div[data-testid="stDownloadButton"] button{background:transparent;color:#7FA6BD;border:1px solid #31536b;font-family:inherit;font-size:.75rem;padding:.2rem .55rem}
 </style>""", unsafe_allow_html=True)
 
@@ -143,21 +144,23 @@ for block_index, block in enumerate(output):
         st.markdown(f'<div class="block"><div class="prompt-question">{esc(data.get("question", block["plain_text"]))}</div></div>', unsafe_allow_html=True)
         options = data.get("options", [])
         if active and options:
-            columns = st.columns(min(4, len(options)))
-            for option_index, option in enumerate(options):
-                label = f"{option.get('key', '')} {option.get('label', '')}".strip()
-                col = columns[option_index % len(columns)]
-                if col.button(label, key=f"prompt_{block_index}_{option_index}", type="primary" if option.get("default") else "secondary"):
-                    st.session_state.pending_line = str(option.get("key", ""))
-        elif active and data.get("question", "").startswith("Type a date"):
-            low = dt.date.fromisoformat(session.as_of_date)
-            high = low + dt.timedelta(days=90)
-            picked = st.date_input("Choose a date", value=low, min_value=low, max_value=high, key=f"deadline_date_{block_index}")
-            if st.button("Confirm date", key=f"confirm_date_{block_index}"):
-                st.session_state.pending_line = picked.isoformat()
-        elif not active and options:
-            chips_html = "".join(f'<span class="option-chip{" default" if option.get("default") else ""}">[{esc(option.get("key", ""))} {esc(option.get("label", ""))}{" · default" if option.get("default") else ""}]</span>' for option in options)
-            st.markdown(f'<div>{chips_html}</div>', unsafe_allow_html=True)
+            with st.container(key=f"mcq_{block_index}"):
+                for option_index, option in enumerate(options):
+                    label = option.get("label", "")
+                    if option.get("default"):
+                        label += "  :gray[default]"
+                    icon = ":material/radio_button_checked:" if option.get("default") else ":material/radio_button_unchecked:"
+                    if st.button(label, icon=icon, key=f"prompt_{block_index}_{option_index}", use_container_width=True):
+                        st.session_state.pending_line = str(option.get("key", ""))
+                        st.session_state.pending_label = option.get("label", "")
+        picker = data.get("picker")
+        if active and picker:
+            low = dt.date.fromisoformat(picker["min"]); high = max(low, dt.date.fromisoformat(picker["max"]))
+            with st.container(key=f"mcq_date_{block_index}"):
+                picked = st.date_input(picker.get("label", "Choose a date"), value=low, min_value=low, max_value=high, key=f"deadline_date_{block_index}")
+                if st.button("Confirm date", icon=":material/check:", key=f"confirm_date_{block_index}"):
+                    st.session_state.pending_line = picked.isoformat()
+                    st.session_state.pending_label = picked.isoformat()
     elif kind == "user_input":
         st.markdown(f'<div class="block user-input"><span class="prefix">❯ </span>{esc(block["plain_text"])}</div>', unsafe_allow_html=True)
     else:
@@ -166,12 +169,15 @@ for block_index, block in enumerate(output):
 
 line = st.chat_input("enter a request or command")
 pending = st.session_state.get("pending_line")
+pending_label = None
 if pending is not None:
     line = pending
+    pending_label = st.session_state.get("pending_label")
     st.session_state.pending_line = None
+    st.session_state.pending_label = None
 if line is not None:
     blocks = session.handle(line)
-    output = list(output) + [{"kind": "user_input", "plain_text": line}] + blocks
+    output = list(output) + [{"kind": "user_input", "plain_text": pending_label or line}] + blocks
     st.session_state.terminal_output = output
     if line.startswith("/user "):
         candidate = line.split(maxsplit=1)[1]

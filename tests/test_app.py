@@ -68,7 +68,7 @@ def test_clicking_deadline_option_advances_intake(monkeypatch):
     _offline(monkeypatch)
     at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
     at.chat_input[0].set_value("Laptop costs 12k").run()
-    next(button for button in at.button if button.label == "2 within 14 days").click().run()
+    next(button for button in at.button if button.label.startswith("Within 14 days")).click().run()
     assert "partial payment" in "\n".join(x.value for x in at.markdown)
 
 
@@ -76,7 +76,7 @@ def test_date_picker_confirm_path(monkeypatch):
     _offline(monkeypatch)
     at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
     at.chat_input[0].set_value("Laptop costs 12k").run()
-    next(button for button in at.button if button.label == "4 type YYYY-MM-DD").click().run()
+    next(button for button in at.button if button.label.startswith("Pick a date")).click().run()
     assert len(at.date_input) == 1
     at.date_input[0].set_value(dt.date(2025, 11, 20))
     next(button for button in at.button if button.label == "Confirm date").click().run()
@@ -104,3 +104,32 @@ def test_export_command_has_download_and_helpful_empty_state(monkeypatch):
     at.chat_input[0].set_value("Laptop costs 12k no deadline just advise").run()
     at.chat_input[0].set_value("/export").run()
     assert len(at.get("download_button")) >= 2
+
+
+def _click(at, prefix):
+    next(button for button in at.button if button.label.startswith(prefix)).click().run()
+
+
+def test_options_are_plain_language_without_numbers_or_bracket_lists(monkeypatch):
+    _offline(monkeypatch)
+    at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=45).run()
+    at.chat_input[0].set_value("Laptop costs 12k").run()
+    labels = [button.label for button in at.button if button.key and button.key.startswith("prompt_")]
+    assert labels, "prompt options should render as buttons"
+    assert not any(label[:1].isdigit() for label in labels)
+    html = "\n".join(x.value for x in at.markdown)
+    assert "When do you need to pay?" in html
+    assert "[1 none" not in html and "(default)" not in html
+
+
+def test_full_conversation_with_clicks_only_and_choice_echoed(monkeypatch):
+    _offline(monkeypatch)
+    at = AppTest.from_file(os.path.join(ROOT, "app.py"), default_timeout=60).run()
+    at.chat_input[0].set_value("Laptop costs 12k").run()
+    _click(at, "No deadline")
+    _click(at, "No, pay it in full")
+    _click(at, "No installments")
+    html = "\n".join(x.value for x in at.markdown)
+    assert "PAY IN FULL TODAY" in html
+    assert "No deadline" in html and "No installments" in html  # choices echoed by label, not key
+    assert "\u276f 1<" not in html

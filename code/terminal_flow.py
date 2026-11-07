@@ -175,16 +175,28 @@ class TerminalSession:
         if question == "deadline_conflict":
             earliest = installment_completion_date(self.as_of_date, self.form["installment_count"])
             text = f"The selected installment plan ends {earliest}, after that deadline. Choose 1 none, or type a date on or after {earliest}."
-            return self._block("prompt", text, {"question": text, "options": [{"key": "1", "label": "none", "default": True}, {"key": "", "label": f"date on/after {earliest}", "default": False}]})
+            low = earliest if isinstance(earliest, str) else earliest.isoformat()
+            high = (dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=90)).isoformat()
+            return self._block("prompt", text, {"question": f"That installment plan would finish on {low}, after your deadline. What would you like to do?",
+                                                "options": [{"key": "1", "label": "Remove the deadline", "default": True}],
+                                                "picker": {"label": "Or choose a later date", "min": low, "max": max(low, high)}})
         if question == "date":
             text = "Type a date in YYYY-MM-DD format."
-            return self._block("prompt", text, {"question": text, "options": []})
+            low = self.as_of_date
+            high = (dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=90)).isoformat()
+            return self._block("prompt", text, {"question": "Which date do you need to pay by?", "options": [], "picker": {"label": "Choose a date", "min": low, "max": high}})
         text = options[question]
-        if question == "deadline": choices = [("1", "none", True), ("2", "within 14 days", False), ("3", "end of this month", False), ("4", "type YYYY-MM-DD", False)]
-        elif question == "partial": choices = [("1", "no", True), ("2", "yes", False)]
-        elif question == "installments": choices = [(part.strip().split()[0], part.strip()[len(part.strip().split()[0]):].strip().strip("()"), idx == 0) for idx, part in enumerate(self._installment_options_text().split(","))]
-        else: choices = [(str(value), f"{value}%", value == 0) for value in (0, 1, 2, 5)]
-        return self._block("prompt", text, {"question": text, "options": [{"key": k, "label": label, "default": default} for k, label, default in choices]})
+        clean_questions = {"deadline": "When do you need to pay?", "partial": "Is partial payment acceptable?",
+                           "installments": "Would you like to pay in installments?", "fee": "Is there a fee for installments?"}
+        if question == "deadline": choices = [("1", "No deadline", True), ("2", "Within 14 days", False), ("3", "By the end of this month", False), ("4", "Pick a date…", False)]
+        elif question == "partial": choices = [("1", "No, pay it in full", True), ("2", "Yes, part now and the rest later", False)]
+        elif question == "installments":
+            counts = self._eligible_installment_counts()
+            if not self.form.get("pay_by_date"):
+                counts = list(self.installment_counts)
+            choices = [("1", "No installments", True)] + [(str(idx + 2), f"{count} monthly payments", False) for idx, count in enumerate(counts)]
+        else: choices = [(str(value), "No fee" if value == 0 else f"{value}% fee", value == 0) for value in (0, 1, 2, 5)]
+        return self._block("prompt", text, {"question": clean_questions.get(question, text), "options": [{"key": k, "label": label, "default": default} for k, label, default in choices]})
 
     def _start(self, line):
         amount, currency = parse_amount(line)
@@ -325,8 +337,7 @@ class TerminalSession:
                 self.form["pay_by_date"] = (n.replace(day=1) - dt.timedelta(days=1)).isoformat()
             elif value == "4":
                 self.questions[self.question_index] = "date"
-                text = "Type a date in YYYY-MM-DD format."
-                return [self._block("prompt", text, {"question": text, "options": []})]
+                return [self._prompt()]
             elif key == "deadline_conflict" and value not in {"", "1"}:
                 self.form["pay_by_date"] = dt.date.fromisoformat(value).isoformat()
             else:
