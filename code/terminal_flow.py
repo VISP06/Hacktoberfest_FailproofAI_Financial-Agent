@@ -17,8 +17,8 @@ _AMOUNT_RE = re.compile(
     r"(?<![\w.])(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|"
     r"\d{1,3}(?: \d{3})+|\d+(?:\.\d+)?)(?![\d,])", re.I
 )
-BANNER = ("Glacier: deterministic payment planning. Try: ‘Can I afford ₹12,000?’, ‘Laptop in 3 installments’, "
-          "‘What if I wait?’ Commands: /help, /users, /why, /situation, /date, /user, /reset, /export.")
+BANNER = ("Glacier checks whether a payment fits your next 90 days: your balance, income, bills and pending items, "
+          "and tells you whether to pay now, split it, or wait.")
 
 
 def parse_amount(text):
@@ -95,7 +95,7 @@ class TerminalSession:
         self.invalid_attempts = 0
         self.report = None
         self.latest_result = None
-        self.latest_wording = "deterministic text"
+        self.latest_wording = "plain text"
         self.last_blocks = []
 
     def _earliest_installment_completion(self):
@@ -133,8 +133,8 @@ class TerminalSession:
         dates = pd.to_datetime(engine.events[engine.events.user_id.astype(str).eq(str(user_id))].event_date, errors="coerce").dropna()
         return dates.max().date().isoformat() if not dates.empty else dt.date.today().isoformat()
 
-    def _block(self, kind, text):
-        block = {"kind": kind, "text": str(text), "plain_text": str(text)}
+    def _block(self, kind, text, data=None):
+        block = {"kind": kind, "text": str(text), "plain_text": str(text), "data": data or {}}
         self.last_blocks.append(block)
         return block
 
@@ -148,15 +148,23 @@ class TerminalSession:
         }
         if question == "deadline_conflict":
             earliest = installment_completion_date(self.as_of_date, self.form["installment_count"])
-            return self._block("prompt", f"The selected installment plan ends {earliest}, after that deadline. Choose 1 none, or type a date on or after {earliest}.")
+            text = f"The selected installment plan ends {earliest}, after that deadline. Choose 1 none, or type a date on or after {earliest}."
+            return self._block("prompt", text, {"question": text, "options": [{"key": "1", "label": "none", "default": True}, {"key": "", "label": f"date on/after {earliest}", "default": False}]})
         if question == "date":
-            return self._block("prompt", "Type a date in YYYY-MM-DD format.")
-        return self._block("prompt", options[question])
+            text = "Type a date in YYYY-MM-DD format."
+            return self._block("prompt", text, {"question": text, "options": []})
+        text = options[question]
+        if question == "deadline": choices = [("1", "none", True), ("2", "within 14 days", False), ("3", "end of this month", False), ("4", "type YYYY-MM-DD", False)]
+        elif question == "partial": choices = [("1", "no", True), ("2", "yes", False)]
+        elif question == "installments": choices = [(part.strip().split()[0], part.strip()[len(part.strip().split()[0]):].strip().strip("()"), idx == 0) for idx, part in enumerate(self._installment_options_text().split(","))]
+        else: choices = [("", "0%", True)]
+        return self._block("prompt", text, {"question": text, "options": [{"key": k, "label": label, "default": default} for k, label, default in choices]})
 
     def _start(self, line):
         amount, currency = parse_amount(line)
         if amount is None:
-            return [self._block("prompt", "What amount are you considering?")]
+            text = "What amount are you considering?"
+            return [self._block("prompt", text, {"question": text, "options": []})]
         self.request_text = line
         home = str(self.assistant.engine.get_user_home_currency(self.user_id))
         self.form = {"amount": amount, "currency": currency or home,
@@ -252,7 +260,8 @@ class TerminalSession:
                 self.form["pay_by_date"] = (n.replace(day=1) - dt.timedelta(days=1)).isoformat()
             elif value == "4":
                 self.questions[self.question_index] = "date"
-                return [self._block("prompt", "Type a date in YYYY-MM-DD format.")]
+                text = "Type a date in YYYY-MM-DD format."
+                return [self._block("prompt", text, {"question": text, "options": []})]
             elif key == "deadline_conflict" and value not in {"", "1"}:
                 self.form["pay_by_date"] = dt.date.fromisoformat(value).isoformat()
             else:
@@ -297,9 +306,9 @@ class TerminalSession:
                         tool.output = result
             self.report = result
             self.latest_result = result
-            self.latest_wording = "deterministic text"
+            self.latest_wording = "plain text"
             text = self.render_report(result)
-            return [self._block("report", text)]
+            return [self._block("report", text, self.report_data(result))]
         except Exception as exc:
             fp.event.error(session_id=self.session_id, agent_id="assistant", error_type=type(exc).__name__, message=str(exc)[:300])
             return [self._block("error", f"Unable to produce advice: {exc}")]
@@ -334,10 +343,14 @@ class TerminalSession:
         for option in options:
             safe_mark = "✓" if option.get("safe") else "✗"
             safety = "SAFE" if option.get("safe") else (
-                f"UNSAFE (drops to {money(option['lowest_projected_balance'],currency)} on "
+                f"(drops to {money(option['lowest_projected_balance'],currency)} on "
                 f"{option['lowest_projected_date']}, {money(max(0, minimum-option['lowest_projected_balance']),currency)} below the minimum)"
             )
-            rows.append(f"{option['type'].replace('_',' '):22} {', '.join(option['dates']):20} {money(option['total_cost'],currency):16} {money(option['lowest_projected_balance'],currency):16} {option['meets_deadline']}   {safe_mark} {safety}")
+            meets = option.get("meets_deadline")
+            meets = "n/a" if meets is None else str(meets)
+            rows.append(f"{option['type'].replace('_',' '):22} {', '.join(option['dates']):20} {money(option['total_cost'],currency):16} {money(option['lowest_projected_balance'],currency):16} {meets}   {safe_mark} {'SAFE' if option.get('safe') else 'UNSAFE'}")
+            if not option.get("safe"):
+                rows.append(f"                         Note: {safety}")
         other_safe = [x["type"].replace("_", " ") for x in options if x.get("safe") and x is not chosen]
         alts = [f"Best other safe options: {', '.join(other_safe) or 'none'}.",
                 f"Earliest safe date to wait for: {situation.get('earliest_date_for_full_payment') or 'not available'}.",
@@ -358,7 +371,49 @@ class TerminalSession:
             )
         else:
             steps = [f"Confirm the selected plan for {money(self.form['amount'],currency)}.", "Keep the minimum balance available.", "Recheck the forecast before making the payment."]
-        return (f"╭─ {verdict} ─╮\nWHY\n{why}\n\nNUMBERS\n90-day balance: {spark}\nMinimum-balance level: {money(minimum,currency)}\n\nOPTIONS\n" + "\n".join(rows) + "\n\nALTERNATIVES\n" + "\n".join("• "+s for s in alts) + "\n\nNEXT STEPS\n" + "\n".join("• "+s for s in steps))
+        dates = list(balances)
+        start_date = dates[0] if dates else self.as_of_date
+        end_date = dates[-1] if dates else (dt.date.fromisoformat(self.as_of_date) + dt.timedelta(days=90)).isoformat()
+        start_balance = vals[0] if vals else situation["current_balance"]
+        end_balance = vals[-1] if vals else situation["current_balance"]
+        return (f"╭─ {verdict} ─╮\nWHY\n{why}\n\nNUMBERS\n90-day balance: {spark}\nMinimum-balance level: {money(minimum,currency)}\n{start_date} {money(start_balance,currency)} → {end_date} {money(end_balance,currency)}\n\nOPTIONS\n" + "\n".join(rows) + "\n\nALTERNATIVES\n" + "\n".join("• "+s for s in alts) + "\n\nNEXT STEPS\n" + "\n".join("• "+s for s in steps) + "\n╰" + "─" * max(10, len(verdict) + 4) + "╯")
+
+    def report_data(self, result):
+        rendered = self.render_report(result)
+        verdict = rendered.split("╭─ ", 1)[1].split(" ─╮", 1)[0]
+        chosen = result.get("recommended_option")
+        if not_affordable := (str(result.get("decision", {}).get("affordability_status")) == "not_affordable"):
+            status = "bad"
+        elif chosen is None or not chosen.get("safe", False):
+            status = "bad"
+        elif chosen.get("type") == "wait":
+            status = "caution"
+        else:
+            status = "good"
+        situation = result["situation"]
+        balances = result.get("evidence", {}).get("balances", {})
+        values = list(balances.values())
+        dates = list(balances)
+        options = []
+        for item in result.get("ranked_options", []):
+            low = item.get("lowest_projected_balance")
+            options.append({"name": item.get("type", "").replace("_", " "), "when": ", ".join(item.get("dates", [])),
+                            "cost": money(item.get("total_cost", 0), self.form["currency"]),
+                            "lowest": money(low, self.form["currency"]),
+                            "meets_deadline": "n/a" if item.get("meets_deadline") is None else str(item.get("meets_deadline")),
+                            "safe": bool(item.get("safe")),
+                            "note": "" if item.get("safe") else f"Unsafe: drops to {money(low, self.form['currency'])} on {item.get('lowest_projected_date')}"})
+        sections = rendered.split("\n\nALTERNATIVES\n")
+        alternatives = sections[-1].split("\n\nNEXT STEPS\n")[0].splitlines() if len(sections) > 1 else []
+        next_steps = rendered.split("\n\nNEXT STEPS\n", 1)[-1].split("\n╰", 1)[0].splitlines()
+        return {"verdict": verdict, "status": status,
+                "why": rendered.split("WHY\n", 1)[-1].split("\n\nNUMBERS", 1)[0],
+                "numbers": {"sparkline_values": values, "minimum": situation["minimum_balance"],
+                            "start_date": dates[0] if dates else self.as_of_date,
+                            "end_date": dates[-1] if dates else self.as_of_date,
+                            "start_balance": values[0] if values else situation["current_balance"],
+                            "end_balance": values[-1] if values else situation["current_balance"]},
+                "options": options, "alternatives": alternatives, "next_steps": next_steps}
 
     def handle(self, line):
         self.last_blocks = []

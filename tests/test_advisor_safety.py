@@ -46,7 +46,9 @@ def test_sample_safety_property_and_named_unaffordable_requests():
             assert result["recommended_option"] is None
             assert not any(option["safe"] for option in result["ranked_options"])
             assert "NOT RECOMMENDED: no option keeps your balance above the minimum" in report
-            assert "SAFE" in report and "✗ UNSAFE (drops to" in report
+            assert "SAFE" in report and "✗ UNSAFE" in report
+            unsafe_note = next(line for line in report.splitlines() if "Note:" in line)
+            assert "drops to" in unsafe_note
         if row.request_id == "request_03":
             wait_result = (result, report)
     assert wait_result is not None

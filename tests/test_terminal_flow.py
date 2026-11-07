@@ -144,7 +144,7 @@ def test_deadline_answer_filters_later_installments_and_why_users_are_evidence_b
     assert demo.handle("Laptop costs Rs. 12k no deadline just advise")[0]["kind"] == "report"
     why = demo.handle("/why")[0]["text"]
     for label in ("Data loaded:", "Income streams/classes:", "Retrieved message IDs:",
-                  "Options considered:", "Wording: deterministic text", "Failproof session: chat-"):
+                  "Options considered:", "Wording: plain text", "Failproof session: chat-"):
         assert label in why
     users = demo.handle("/users INR")[0]["text"]
     assert "user_07 · INR · INR" in users
