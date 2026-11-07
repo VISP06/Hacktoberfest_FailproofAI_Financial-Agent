@@ -258,3 +258,24 @@ def test_deadline_column_is_textual_yes_no_na():
     session.handle("Laptop 12k no deadline just advise")
     values = [row["meets_deadline"] for row in session.report_data(session.report)["options"]]
     assert all(value in {"yes", "no", "n/a"} for value in values)
+
+
+@pytest.mark.parametrize(("followup", "requested_now"), [("pay 5k now", 5_000), ("pay 40% now", 40_000),
+                                                           ("pay half now", 50_000)])
+def test_partial_followup_amount_is_used_when_safe(followup, requested_now):
+    session = TerminalSession("user_07", "2024-09-04")
+    session.handle("Laptop costs 100k no deadline just advise")
+    blocks = session.handle(followup)
+    assert any(block["kind"] == "report" for block in blocks)
+    option = next(item for item in session.report["ranked_options"] if item["type"] == "partial_then_remainder")
+    situation = session.assistant.situation()
+    capacity = situation["lowest_projected_balance"] - situation["minimum_balance"]
+    assert option["amounts"]["2024-09-04"] == pytest.approx(min(requested_now, capacity), abs=0.01)
+
+
+def test_situation_shows_actual_30_and_90_day_outflows():
+    session = TerminalSession("user_07", "2024-09-04")
+    text = session.handle("/situation")[0]["text"]
+    situation = session.assistant.situation()
+    assert f"outflows next 30 days: INR {situation['committed_outflows_next_30_days']:,.2f}" in text
+    assert f"next 90 days: INR {situation['committed_outflows_next_90_days']:,.2f}" in text

@@ -429,7 +429,10 @@ class Assistant:
                 "amount": form.get("amount"), "currency": form.get("currency") or home,
                 "desired_date": date_value.isoformat() if hasattr(date_value, "isoformat") else date_value,
                 "allows_partial_payment": bool(form.get("allow_partial", False)),
-                "installment_terms": terms, "initial_fraction": None, "missing_fields": []}
+                "installment_terms": terms,
+                "initial_fraction": (float(form["partial_amount"]) / float(form["amount"])
+                                     if form.get("partial_amount") is not None and float(form.get("amount") or 0) > 0
+                                     else None), "missing_fields": []}
 
     def advise(self, form):
         with fp.session(self.session_id):
@@ -541,7 +544,9 @@ class Assistant:
             return scenarios[-1]
         add("pay_in_full_now", [(self.as_of_date, amount)], intended_total=amount)
         capacity = max(0.0, min(baseline.values()) - minimum)
-        partial_now = min(amount - .01, capacity)
+        requested_partial = (amount * float(intent["initial_fraction"])
+                             if intent.get("initial_fraction") is not None else capacity)
+        partial_now = min(amount - .01, capacity, requested_partial)
         if (intent["allows_partial_payment"] and partial_now > 0 and earliest
                 and earliest > self.as_of_date):
             add("partial_then_remainder", [(self.as_of_date, partial_now),

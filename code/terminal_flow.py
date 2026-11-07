@@ -216,6 +216,8 @@ class TerminalSession:
             self.questions.append("deadline")
         if re.search(r"pay half now|partial payment", lowered):
             self.form["allow_partial"] = True
+            if "pay half now" in lowered:
+                self.form["partial_amount"] = amount * 0.5
         elif not re.search(r"\b(no partial|pay in full|full payment only)\b", lowered):
             self.questions.append("partial")
         count = re.search(r"\b(\d+)\s+installments?\b", lowered)
@@ -506,8 +508,8 @@ class TerminalSession:
                 self._block("text", "No report to export yet. Ask an amount first.")
         elif command == "/situation":
             s = self.assistant.situation(); c = self.assistant.engine.get_user_home_currency(self.user_id)
-            outflows = s.get("outflows_next_30_days", s.get("outflows_next_30", 0))
-            outflows90 = s.get("outflows_next_90_days", s.get("outflows_next_90", 0))
+            outflows = s.get("committed_outflows_next_30_days", s.get("outflows_next_30_days", s.get("outflows_next_30", 0)))
+            outflows90 = s.get("committed_outflows_next_90_days", s.get("outflows_next_90_days", s.get("outflows_next_90", 0)))
             pending = s.get("pending_items", s.get("pending_items_considered_or_ignored", {}))
             self._block("text", (f"Balance: {money(s['current_balance'],c)}; minimum: {money(s['minimum_balance'],c)}; "
                                   f"lowest projected balance: {money(s['lowest_projected_balance'],c)} on {s.get('lowest_projected_date', 'n/a')}; "
@@ -607,6 +609,20 @@ class TerminalSession:
         if "half" in low or re.search(r"\bpay\s+\d+(?:\.\d+)?\s*%\s+now\b", low) or re.search(r"\bpay\s+[\d,.]+\s*(?:k|thousand)?\s+now\b", low):
             self.form["allow_partial"] = True
             self.form["allow_installments"] = False
+            percent = re.search(r"\bpay\s+(\d+(?:\.\d+)?)\s*%\s+now\b", low)
+            explicit = re.search(r"\bpay\s+([\d,.]+)\s*(k|thousand)?\s+now\b", low)
+            if percent:
+                self.form["partial_amount"] = self.form["amount"] * float(percent.group(1)) / 100
+            elif explicit:
+                raw = explicit.group(1) + (explicit.group(2) or "")
+                partial, partial_currency = parse_amount(raw)
+                if partial is not None:
+                    home_amount, _ = self.assistant._home_amount(partial, partial_currency or self.form["currency"])
+                    request_home, _ = self.assistant._home_amount(self.form["amount"], self.form["currency"])
+                    self.form["partial_amount"] = (self.form["amount"] * home_amount / request_home
+                                                    if home_amount is not None and request_home else partial)
+            elif "half" in low:
+                self.form["partial_amount"] = self.form["amount"] * 0.5
             return True
         count = re.search(r"\b(3|6|12)\s+installments?\b", low)
         if count:
